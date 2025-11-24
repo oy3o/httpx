@@ -61,7 +61,7 @@ func LoginHandler(ctx context.Context, req *LoginReq) (*LoginRes, error) {
 
 ### 3. Register Routes
 
-Use `httpx.NewHandler` to convert business functions into standard `http.Handler`s.
+Use `httpx.NewHandler` to convert business functions into standard `http.Handler`s. Use `httpx.NewStreamHandler` to convert streamable business functions into standard `http.Handler`s.
 
 ```go
 func main() {

@@ -60,7 +60,7 @@ func LoginHandler(ctx context.Context, req *LoginReq) (*LoginRes, error) {
 
 ### 3. 注册路由
 
-使用 `httpx.NewHandler` 将业务函数转换为标准的 `http.Handler`。
+使用 `httpx.NewHandler` 将业务函数转换为标准的 `http.Handler`。使用 `httpx.NewStreamHandler` 将流式响应业务函数转换为标准的 `http.Handler`。
 
 ```go
 func main() {
