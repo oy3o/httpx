@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/puzpuzpuz/xsync/v4"
 	"github.com/rs/xid"
 )
 
@@ -14,7 +15,7 @@ type shutdownKey struct{}
 type ShutdownManager struct {
 	// activeHandlers 存储所有活跃请求的关闭回调
 	// Key: RequestID (由 xid 生成), Value: []func()
-	activeHandlers sync.Map
+	activeHandlers *xsync.Map[string, *sessionState]
 	// closed 标记是否已关闭，防止重复关闭
 	closed bool
 	mu     sync.Mutex
@@ -22,7 +23,9 @@ type ShutdownManager struct {
 
 // NewShutdownManager 创建一个新的关闭管理器
 func NewShutdownManager() *ShutdownManager {
-	return &ShutdownManager{}
+	return &ShutdownManager{
+		activeHandlers: xsync.NewMap[string, *sessionState](),
+	}
 }
 
 // RegisterOnShutdown 在当前请求的上下文中注册一个关闭回调。
@@ -87,9 +90,7 @@ func (m *ShutdownManager) Shutdown(ctx context.Context) error {
 	var wg sync.WaitGroup
 
 	// 遍历所有活跃会话
-	m.activeHandlers.Range(func(key, value any) bool {
-		session := value.(*sessionState)
-
+	m.activeHandlers.Range(func(key string, session *sessionState) bool {
 		// 为每个会话启动一个 goroutine 处理其回调
 		wg.Add(1)
 		go func() {

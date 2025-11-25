@@ -6,6 +6,7 @@ require (
 	github.com/felixge/httpsnoop v1.0.4
 	github.com/go-playground/validator/v10 v10.28.0
 	github.com/gorilla/schema v1.4.1
+	github.com/puzpuzpuz/xsync/v4 v4.2.0
 	github.com/rs/xid v1.6.0
 	github.com/stretchr/testify v1.11.1
 )
