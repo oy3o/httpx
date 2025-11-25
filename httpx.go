@@ -3,8 +3,8 @@ package httpx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
-	"strings"
 )
 
 // GetTraceID 是一个依赖注入点。
@@ -104,8 +104,8 @@ func prepare[Req any, Res any](w http.ResponseWriter, r *http.Request, cfg *conf
 	// 使用配置中的 binders
 	if err := Bind(r, &req, cfg.binders...); err != nil {
 		// 如果是因为 Body 太大导致的错误，返回 413
-		// 标准库 http.MaxBytesReader 返回的错误信息固定为 "http: request body too large"
-		if cfg.maxBodySize > 0 && strings.Contains(err.Error(), "request body too large") {
+		var maxBytesErr *http.MaxBytesError
+		if cfg.maxBodySize > 0 && errors.As(err, &maxBytesErr) {
 			Error(w, r, ErrRequestEntityTooLarge, cfg.errorHook)
 			return
 		}
