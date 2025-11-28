@@ -3,6 +3,7 @@ package httpx
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"strconv"
 )
 
@@ -39,9 +40,13 @@ func (f *FileResponse) Headers() map[string]string {
 		ct = "application/octet-stream"
 	}
 	h["Content-Type"] = ct
+
 	if f.Name != "" {
-		h["Content-Disposition"] = fmt.Sprintf("attachment; filename=%q", f.Name)
+		// 强制清理文件名，只保留 Base 部分，防止路径遍历攻击 (e.g. "../../../etc/passwd")
+		cleanName := filepath.Base(f.Name)
+		h["Content-Disposition"] = fmt.Sprintf("attachment; filename=%q", cleanName)
 	}
+
 	if f.Size > 0 {
 		h["Content-Length"] = strconv.FormatInt(f.Size, 10)
 	}

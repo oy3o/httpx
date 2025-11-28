@@ -156,14 +156,14 @@ func TestNewHandler_BusinessError(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "Conflict")
 }
 
-// 验证 JSON 绑定默认允许未知字段 (Fix Compatibility)
+// 验证 JSON 绑定默认不允许未知字段
 func TestJsonBinder_UnknownFields(t *testing.T) {
 	handlerFunc := func(ctx context.Context, req *TestReqReflect) (*TestRes, error) {
 		return &TestRes{ID: req.Name}, nil
 	}
 
 	t.Run("Default_Permissive", func(t *testing.T) {
-		h := NewHandler(handlerFunc)
+		h := NewHandler(handlerFunc, WithBinders(&JsonBinder{DisallowUnknownFields: false}))
 		// 包含未知字段 "extra_field"
 		body := `{"name": "bob", "age": 30, "extra_field": "ignored"}`
 		r := httptest.NewRequest("POST", "/", bytes.NewBufferString(body))

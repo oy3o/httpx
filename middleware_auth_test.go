@@ -54,7 +54,7 @@ func TestAuthBearer(t *testing.T) {
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
 		assert.Equal(t, 401, w.Code)
-		assert.Contains(t, w.Body.String(), "bad token")
+		assert.Contains(t, w.Body.String(), "invalid token")
 		assert.Contains(t, w.Header().Get("WWW-Authenticate"), `error="invalid_token"`)
 	})
 

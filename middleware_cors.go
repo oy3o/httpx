@@ -16,12 +16,15 @@ type CORSOptions struct {
 }
 
 // DefaultCORS 返回一个宽容的 CORS 中间件（开发环境常用）。
+// 注意：为了安全，默认禁用了 AllowCredentials。
+// 如果需要携带 Cookie/Auth 头，请手动配置 CORS 并指定具体的 AllowedOrigins。
 func DefaultCORS() Middleware {
 	return CORS(CORSOptions{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
-		AllowedHeaders:   []string{"Content-Type", "Authorization", "X-Requested-With"},
-		AllowCredentials: true,
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowedHeaders: []string{"Content-Type", "Authorization", "X-Requested-With"},
+		// 默认为 false。配合 "*" Origin 使用 true 是不安全的且被浏览器禁止。
+		AllowCredentials: false,
 		MaxAge:           86400,
 	})
 }
@@ -37,7 +40,7 @@ func CORS(opts CORSOptions) Middleware {
 				return
 			}
 
-			// 简单的 Origin 匹配逻辑
+			// Origin 匹配逻辑
 			allowed := false
 			for _, o := range opts.AllowedOrigins {
 				if o == "*" || o == origin {
@@ -51,11 +54,23 @@ func CORS(opts CORSOptions) Middleware {
 				return
 			}
 
-			// 设置 CORS Headers
 			h := w.Header()
-			h.Set("Access-Control-Allow-Origin", origin)
+			// 如果配置了 AllowCredentials，则必须回显具体的 Origin，不能是 "*"
 			if opts.AllowCredentials {
+				h.Set("Access-Control-Allow-Origin", origin)
 				h.Set("Access-Control-Allow-Credentials", "true")
+			} else {
+				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
+				// 为了简化，如果有 "*" 匹配，直接返回 "*"
+				// 否则返回具体的 origin
+				val := origin
+				for _, o := range opts.AllowedOrigins {
+					if o == "*" {
+						val = "*"
+						break
+					}
+				}
+				h.Set("Access-Control-Allow-Origin", val)
 			}
 
 			// 处理 Preflight OPTIONS 请求
@@ -65,7 +80,6 @@ func CORS(opts CORSOptions) Middleware {
 				if len(opts.ExposedHeaders) > 0 {
 					h.Set("Access-Control-Expose-Headers", strings.Join(opts.ExposedHeaders, ", "))
 				}
-				// 204 No Content
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}

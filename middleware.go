@@ -2,6 +2,7 @@ package httpx
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/felixge/httpsnoop"
@@ -28,6 +29,11 @@ func Recovery(panicHook func(ctx context.Context, err interface{})) Middleware {
 						panicHook(r.Context(), err)
 					}
 					w.WriteHeader(http.StatusInternalServerError)
+					Error(w, r, &HttpError{
+						HttpCode: 500,
+						BizCode:  "PANIC",
+						Msg:      fmt.Sprintf("panic: %v", err),
+					})
 				}
 			}()
 			next.ServeHTTP(w, r)

@@ -14,9 +14,7 @@ func TestDefaultCORS(t *testing.T) {
 		w.WriteHeader(200)
 	}))
 
-	// DefaultCORS 开启了 AllowCredentials: true
-	// 因此 Access-Control-Allow-Origin 必须是具体的 Origin，而不能是 *
-	// 尽管配置的 AllowedOrigins 是 ["*"]，但在实现中会反射 Request 的 Origin
+	// DefaultCORS 因为 * 所以 AllowCredentials: false
 	requestOrigin := "https://any.com"
 
 	r := httptest.NewRequest("GET", "/", nil)
@@ -24,8 +22,8 @@ func TestDefaultCORS(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, r)
 
-	assert.Equal(t, requestOrigin, w.Header().Get("Access-Control-Allow-Origin"))
-	assert.Equal(t, "true", w.Header().Get("Access-Control-Allow-Credentials"))
+	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "", w.Header().Get("Access-Control-Allow-Credentials"))
 }
 
 func TestCORS_Detailed(t *testing.T) {

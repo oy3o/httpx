@@ -1,3 +1,5 @@
+// file: httpx/error.go
+
 package httpx
 
 import (
@@ -8,6 +10,10 @@ import (
 	"net/http"
 	"syscall"
 )
+
+// SafeMode 控制是否开启错误脱敏。
+// 建议在生产环境设置为 true。
+var SafeMode = false
 
 // --- 1. 预定义业务错误码 (Predefined Business Codes) ---
 
@@ -70,9 +76,17 @@ type BizCoder interface {
 	BizStatus() string
 }
 
+// PublicError 定义了该错误是否包含可安全展示给前端的信息。
+// 在 SafeMode=true 时，只有实现了此接口且 PublicMessage() 返回非空，或者具体类型为 *HttpError 的错误，
+// 其原本的 Error() 内容才会被返回给客户端，否则将被替换为 "Internal Server Error"。
+type PublicError interface {
+	PublicMessage() string
+}
+
 // --- 4. HttpError 核心结构 ---
 
 // HttpError 是一个通用的错误实现，同时满足 error, ErrorCoder 和 BizCoder 接口。
+// HttpError 被视为“安全的”，因为它是开发者显式构造的业务错误。
 type HttpError struct {
 	HttpCode int
 	BizCode  string
@@ -84,6 +98,8 @@ func (e *HttpError) Error() string { return e.Msg }
 func (e *HttpError) HTTPStatus() int { return e.HttpCode }
 
 func (e *HttpError) BizStatus() string { return e.BizCode }
+
+func (e *HttpError) PublicMessage() string { return e.Msg }
 
 // NewError 创建一个新的 HttpError。
 // httpCode: HTTP 状态码 (如 404)
@@ -106,6 +122,7 @@ var ErrorHook func(ctx context.Context, err error) = nil
 // Error 负责将 error 转换为 HTTP 响应并写入 ResponseWriter。
 func Error(w http.ResponseWriter, r *http.Request, err error, errhooks ...func(ctx context.Context, err error)) {
 	// 执行 ErrorHook (通常用于日志记录)
+	// 无论 SafeMode 是否开启，日志里都应该记录原始的详细错误
 	var errhook func(ctx context.Context, err error)
 	if len(errhooks) == 0 {
 		errhook = ErrorHook
@@ -132,6 +149,29 @@ func Error(w http.ResponseWriter, r *http.Request, err error, errhooks ...func(c
 	if e, ok := err.(BizCoder); ok {
 		if code := e.BizStatus(); code != "" {
 			bizCode = code
+		}
+	}
+
+	// 安全模式下的错误脱敏
+	if SafeMode {
+		isSafe := false
+		// 1. 如果是 HttpError 类型，视为安全
+		if _, ok := err.(*HttpError); ok {
+			isSafe = true
+		} else if pub, ok := err.(PublicError); ok {
+			// 2. 如果实现了 PublicError 接口，使用其安全消息
+			safeMsg := pub.PublicMessage()
+			if safeMsg != "" {
+				msg = safeMsg
+				isSafe = true
+			}
+		}
+
+		// 3. 如果不安全，或者是 5xx 类服务端错误（通常包含堆栈或内部细节），进行屏蔽
+		// 注意：即使是 HttpError，如果是 500，我们通常也保留原 msg，因为那是开发者自己 NewError(500, ...) 写的。
+		// 这里主要拦截那些未被包装的 raw error (e.g. sql.ErrNoRows, os.PathError)
+		if !isSafe && httpCode >= 500 {
+			msg = "Internal Server Error"
 		}
 	}
 

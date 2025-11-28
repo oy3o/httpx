@@ -38,7 +38,7 @@ type Binder interface {
 
 type JsonBinder struct {
 	// DisallowUnknownFields 控制是否允许 JSON 中包含结构体未定义的字段。
-	// 默认为 false (允许)，以保持向后兼容性。
+	// 默认为 true (不允许)，否则可能导致“参数污染”或逻辑绕过。。
 	DisallowUnknownFields bool
 }
 
@@ -243,7 +243,7 @@ func (b *PathBinder) Bind(r *http.Request, v any) error {
 var Binders = []Binder{
 	&PathBinder{},
 	&QueryBinder{},
-	&JsonBinder{DisallowUnknownFields: false},
+	&JsonBinder{DisallowUnknownFields: true},
 	&FormBinder{MaxMemory: DefaultMultipartMemory},
 }
 

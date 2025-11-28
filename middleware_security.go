@@ -1,8 +1,23 @@
 package httpx
 
 import (
+	"fmt"
 	"net/http"
 )
+
+// SecurityConfig 定义安全头配置
+type SecurityConfig struct {
+	// HSTSMaxAgeSeconds 启用 Strict-Transport-Security。0 表示禁用。
+	// 生产环境建议设置为 31536000 (1年)。
+	HSTSMaxAgeSeconds int
+
+	// HSTSIncludeSubdomains 是否包含子域名
+	HSTSIncludeSubdomains bool
+
+	// CSP Content-Security-Policy 值。
+	// 例如: "default-src 'self'"
+	CSP string
+}
 
 // SecurityHeaders 返回一个中间件，用于添加通用的安全响应头。
 // 包括:
@@ -10,7 +25,11 @@ import (
 // - X-Content-Type-Options: nosniff (防止 MIME 嗅探)
 // - X-XSS-Protection: 1; mode=block (开启 XSS 过滤)
 // - Referrer-Policy: strict-origin-when-cross-origin (控制 Referrer 泄露)
-func SecurityHeaders() Middleware {
+func SecurityHeaders(cfgs ...SecurityConfig) Middleware {
+	var cfg SecurityConfig
+	if len(cfgs) > 0 {
+		cfg = cfgs[0]
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := w.Header()
@@ -33,6 +52,23 @@ func SecurityHeaders() Middleware {
 			// 控制 Referrer 信息的传递
 			if h.Get("Referrer-Policy") == "" {
 				h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			}
+
+			// 2. HSTS (仅在 HTTPS 下生效)
+			if cfg.HSTSMaxAgeSeconds > 0 {
+				// 简单判断是否是 TLS 连接，或者通过 X-Forwarded-Proto (如果信任代理)
+				// 这里保守起见，只检查 r.TLS，但在 Proxy 后可能需要额外配置。
+				// 为简化，我们假设如果用户配置了 HSTS，他们知道自己在做什么，总是输出头。
+				val := fmt.Sprintf("max-age=%d", cfg.HSTSMaxAgeSeconds)
+				if cfg.HSTSIncludeSubdomains {
+					val += "; includeSubDomains"
+				}
+				h.Set("Strict-Transport-Security", val)
+			}
+
+			// 3. CSP
+			if cfg.CSP != "" {
+				h.Set("Content-Security-Policy", cfg.CSP)
 			}
 
 			next.ServeHTTP(w, r)

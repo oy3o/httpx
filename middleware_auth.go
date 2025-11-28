@@ -41,7 +41,11 @@ func AuthBearer(validator AuthValidator, realm string) Middleware {
 				const prefix = "Bearer "
 				if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
 					w.Header().Set("WWW-Authenticate", authHeader)
-					http.Error(w, "Unauthorized: invalid bearer format", http.StatusUnauthorized)
+					Error(w, r, &HttpError{
+						HttpCode: http.StatusUnauthorized,
+						BizCode:  "Unauthorized",
+						Msg:      "invalid bearer format",
+					})
 					return
 				}
 				token = auth[len(prefix):]
@@ -53,14 +57,22 @@ func AuthBearer(validator AuthValidator, realm string) Middleware {
 
 			if token == "" {
 				w.Header().Set("WWW-Authenticate", authHeader)
-				http.Error(w, "Unauthorized: token missing", http.StatusUnauthorized)
+				Error(w, r, &HttpError{
+					HttpCode: http.StatusUnauthorized,
+					BizCode:  "Unauthorized",
+					Msg:      "token missing",
+				})
 				return
 			}
 
 			identity, err := validator(r.Context(), token)
 			if err != nil {
 				w.Header().Set("WWW-Authenticate", errHeader)
-				http.Error(w, "Unauthorized: "+err.Error(), http.StatusUnauthorized)
+				Error(w, r, &HttpError{
+					HttpCode: http.StatusUnauthorized,
+					BizCode:  "Unauthorized",
+					Msg:      "invalid token",
+				})
 				return
 			}
 
@@ -85,14 +97,22 @@ func AuthBasic(validator BasicValidator, realm string) Middleware {
 			user, pass, ok := r.BasicAuth()
 			if !ok {
 				w.Header().Set("WWW-Authenticate", authHeader)
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				Error(w, r, &HttpError{
+					HttpCode: http.StatusUnauthorized,
+					BizCode:  "Unauthorized",
+					Msg:      "invalid basic format",
+				})
 				return
 			}
 
 			identity, err := validator(r.Context(), user, pass)
 			if err != nil {
 				w.Header().Set("WWW-Authenticate", authHeader)
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				Error(w, r, &HttpError{
+					HttpCode: http.StatusUnauthorized,
+					BizCode:  "Unauthorized",
+					Msg:      "invalid basic format",
+				})
 				return
 			}
 
