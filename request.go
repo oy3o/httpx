@@ -87,9 +87,10 @@ func (b *FormBinder) Bind(r *http.Request, v any) error {
 		limit = DefaultMultipartMemory
 	}
 
-	// ParseMultipartForm 会自动处理 urlencoded 和 multipart
-	// 使用配置的 limit。如果上传文件超过 limit，多余部分会存储在临时文件中。
-	if err := r.ParseMultipartForm(limit); err != nil {
+	// ParseMultipartForm 会自动处理 urlencoded 和 multipart。
+	// 注意：如果 Content-Type 是 application/x-www-form-urlencoded，
+	// ParseMultipartForm 会解析表单但返回 ErrNotMultipart，我们需要忽略这个特定的错误。
+	if err := r.ParseMultipartForm(limit); err != nil && err != http.ErrNotMultipart {
 		return fmt.Errorf("parse form error: %w", err)
 	}
 

@@ -110,6 +110,30 @@ func TestFormBinder_UnexportedFields(t *testing.T) {
 	assert.Nil(t, req.file)
 }
 
+// 验证 application/x-www-form-urlencoded 是否被正确处理
+func TestFormBinder_UrlEncoded(t *testing.T) {
+	type FormReq struct {
+		Name string `form:"name"`
+		Age  int    `form:"age"`
+	}
+
+	// 构造 UrlEncoded 请求
+	body := "name=alice&age=30"
+	r := httptest.NewRequest("POST", "/", strings.NewReader(body))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	var req FormReq
+	binder := &FormBinder{}
+
+	// 此时 ParseMultipartForm 会返回 http.ErrNotMultipart，我们期望 FormBinder 忽略此错误
+	err := binder.Bind(r, &req)
+	require.NoError(t, err, "Should accept x-www-form-urlencoded without error")
+
+	// 验证数据是否正确绑定
+	assert.Equal(t, "alice", req.Name)
+	assert.Equal(t, 30, req.Age)
+}
+
 type PathParamReq struct {
 	ID   int    `path:"id"`
 	Slug string `path:"slug"`
