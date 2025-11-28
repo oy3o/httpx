@@ -2,9 +2,10 @@ package httpx
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
+
+	"github.com/bytedance/sonic"
 )
 
 // GetTraceID 是一个依赖注入点。
@@ -51,7 +52,7 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 			body = resp
 		}
 
-		if err := json.NewEncoder(w).Encode(body); err != nil && cfg.errorHook != nil {
+		if err := sonic.ConfigDefault.NewEncoder(w).Encode(body); err != nil && cfg.errorHook != nil {
 			cfg.errorHook(r.Context(), err)
 		}
 	}

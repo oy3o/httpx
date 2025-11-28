@@ -3,12 +3,12 @@ package httpx
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/bytedance/sonic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +62,7 @@ func TestNewHandler_Success(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var resp Response[TestRes]
-	err := json.NewDecoder(w.Body).Decode(&resp)
+	err := sonic.ConfigDefault.NewDecoder(w.Body).Decode(&resp)
 	require.NoError(t, err)
 	assert.Equal(t, "OK", resp.Code)
 	assert.Equal(t, "success", resp.Message)
@@ -133,7 +133,7 @@ func TestNewHandler_NoEnvelope(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	var res TestRes
-	err := json.NewDecoder(w.Body).Decode(&res)
+	err := sonic.ConfigDefault.NewDecoder(w.Body).Decode(&res)
 	require.NoError(t, err)
 	assert.Equal(t, "raw_123", res.ID)
 }
@@ -237,7 +237,7 @@ func TestNewHandler_TraceID_Injection(t *testing.T) {
 
 	// 验证 Body
 	var resp Response[TestRes]
-	err := json.NewDecoder(w.Body).Decode(&resp)
+	err := sonic.ConfigDefault.NewDecoder(w.Body).Decode(&resp)
 	require.NoError(t, err)
 	assert.Equal(t, "trace-id-999", resp.TraceID, "Response body should contain TraceID")
 }
@@ -260,7 +260,7 @@ func TestError_TraceID_Injection(t *testing.T) {
 
 	// 验证 Body
 	var resp Response[any]
-	json.NewDecoder(w.Body).Decode(&resp)
+	sonic.ConfigDefault.NewDecoder(w.Body).Decode(&resp)
 	assert.Equal(t, "error-trace-id", resp.TraceID)
 	assert.Equal(t, "BAD_REQUEST", resp.Code)
 }

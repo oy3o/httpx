@@ -1,14 +1,13 @@
-// file: httpx/error.go
-
 package httpx
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"syscall"
+
+	"github.com/bytedance/sonic"
 )
 
 // SafeMode 控制是否开启错误脱敏。
@@ -196,7 +195,7 @@ func Error(w http.ResponseWriter, r *http.Request, err error, errhooks ...func(c
 		TraceID: traceID,
 	}
 
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
+	if err := sonic.ConfigDefault.NewEncoder(w).Encode(resp); err != nil {
 		// 忽略网络断开引发的写入错误
 		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
 			return

@@ -137,7 +137,7 @@ func TestFormBinder_UrlEncoded(t *testing.T) {
 type PathParamReq struct {
 	ID   int    `path:"id"`
 	Slug string `path:"slug"`
-	Type string `path:"type" schema:"type_override"` // 测试 schema tag 映射
+	Type string `path:"type" form:"type_override"` // 测试 form tag 映射
 }
 
 func TestPathBinder(t *testing.T) {
