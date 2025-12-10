@@ -142,6 +142,7 @@ func (r *LoginReq) Validate(ctx context.Context) error {
 | `AuthBearer`/`Basic`| 认证 Token 提取与校验。 |
 | `ShutdownManager` | **长连接优雅关闭管理器** (适用于 WebSocket/SSE)。 |
 | `Router` | 增强版 `ServeMux`，支持 `Group` 路由组和 Method+Path 绑定。 |
+| `ClientIP` | 提取真实客户端 IP 的中间件（支持 **可信代理** CIDR 配置）。 |
 
 ### 进阶：长连接优雅关闭
 

@@ -143,6 +143,7 @@ Separates **HTTP Status** from **Business Code**. Automatically injects `X-Trace
 | `AuthBearer`/`Basic`| Token extraction and validation. |
 | `ShutdownManager` | Manages graceful shutdown for long-lived connections (WebSocket/SSE). |
 | `Router` | Enhanced `ServeMux` with `Group` support and Method+Path handling. |
+| `ClientIP` | Middleware to extract real client IP with **Trusted Proxy** support. |
 
 ### Advanced: Graceful Shutdown for Long Connections
 
