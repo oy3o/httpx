@@ -60,24 +60,28 @@ func LoginHandler(ctx context.Context, req *LoginReq) (*LoginRes, error) {
 ```
 
 ### 3. Register Routes
-
-Use `httpx.NewHandler` to convert business functions into standard `http.Handler`s. Use `httpx.NewStreamHandler` to convert streamable business functions into standard `http.Handler`s.
+Use `httpx.NewRouter` for a better routing experience with Group support, fully compatible with standard `http.ServeMux`.Use `httpx.NewHandler` to convert business functions into standard `http.Handler`s. Use `httpx.NewStreamHandler` to convert streamable business functions into standard `http.Handler`s.
 
 ```go
 func main() {
-    mux := http.NewServeMux()
+    // 1. Create a Router (wraps http.ServeMux)
+    r := httpx.NewRouter()
 
-    // Register Handler with Options (Safety limits)
-    mux.Handle("POST /login/{tenant_id}", httpx.NewHandler(LoginHandler, 
-        httpx.WithMaxBodySize(2<<20), // Limit body to 2MB
-    ))
+    // 2. Register Routes
+    r.Handle("POST /login", httpx.NewHandler(LoginHandler))
 
-    // Add middleware chain
-    handler := httpx.Chain(mux, 
+    // 3. Use Groups
+    api := r.Group("/api/v1")
+    
+    // 4. Apply Middleware to Group
+    // api.Use(httpx.AuthMiddleware) - Coming soon, currently via Group(pattern, middlewares...)
+    admin := r.Group("/admin", AdminAuthMiddleware)
+    admin.Handle("DELETE /users/{id}", httpx.NewHandler(DeleteUser))
+
+    // 5. Add Global Middleware
+    handler := httpx.Chain(r, 
         httpx.Recovery(nil),
         httpx.Logger(nil),
-        httpx.SecurityHeaders(), // Security hardening
-        httpx.DefaultCORS(),
     )
 
     http.ListenAndServe(":8080", handler)
@@ -138,6 +142,7 @@ Separates **HTTP Status** from **Business Code**. Automatically injects `X-Trace
 | `RateLimit` | Rate limiting interface integration. |
 | `AuthBearer`/`Basic`| Token extraction and validation. |
 | `ShutdownManager` | Manages graceful shutdown for long-lived connections (WebSocket/SSE). |
+| `Router` | Enhanced `ServeMux` with `Group` support and Method+Path handling. |
 
 ### Advanced: Graceful Shutdown for Long Connections
 

@@ -56,9 +56,6 @@ func SecurityHeaders(cfgs ...SecurityConfig) Middleware {
 
 			// 2. HSTS (仅在 HTTPS 下生效)
 			if cfg.HSTSMaxAgeSeconds > 0 {
-				// 简单判断是否是 TLS 连接，或者通过 X-Forwarded-Proto (如果信任代理)
-				// 这里保守起见，只检查 r.TLS，但在 Proxy 后可能需要额外配置。
-				// 为简化，我们假设如果用户配置了 HSTS，他们知道自己在做什么，总是输出头。
 				val := fmt.Sprintf("max-age=%d", cfg.HSTSMaxAgeSeconds)
 				if cfg.HSTSIncludeSubdomains {
 					val += "; includeSubDomains"

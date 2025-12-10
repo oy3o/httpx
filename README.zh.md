@@ -59,24 +59,28 @@ func LoginHandler(ctx context.Context, req *LoginReq) (*LoginRes, error) {
 ```
 
 ### 3. 注册路由
-
-使用 `httpx.NewHandler` 将业务函数转换为标准的 `http.Handler`。使用 `httpx.NewStreamHandler` 将流式响应业务函数转换为标准的 `http.Handler`。
+使用 `httpx.NewRouter` 获得更好的路由体验（支持 Group），同时保持与标准库 `http.ServeMux` 的完全兼容。使用 `httpx.NewHandler` 将业务函数转换为标准的 `http.Handler`。使用 `httpx.NewStreamHandler` 将流式响应业务函数转换为标准的 `http.Handler`。
 
 ```go
 func main() {
-    mux := http.NewServeMux()
+    // 1. 创建 Router (封装了 http.ServeMux)
+    r := httpx.NewRouter()
 
-    // 注册路由，并应用安全选项
-    mux.Handle("POST /login/{tenant_id}", httpx.NewHandler(LoginHandler,
-        httpx.WithMaxBodySize(2<<20), // 限制 Body 最大 2MB，防止 DoS
-    ))
+    // 2. 注册路由
+    r.Handle("POST /login", httpx.NewHandler(LoginHandler))
 
-    // 添加中间件链
-    handler := httpx.Chain(mux, 
+    // 3. 使用路由组 (Group)
+    api := r.Group("/api/v1")
+    
+    // 4. 为组添加中间件
+    // admin组的所有请求都会经过 AdminAuthMiddleware
+    admin := r.Group("/admin", AdminAuthMiddleware)
+    admin.Handle("DELETE /users/{id}", httpx.NewHandler(DeleteUser))
+
+    // 5. 添加全局中间件
+    handler := httpx.Chain(r, 
         httpx.Recovery(nil),
         httpx.Logger(nil),
-        httpx.SecurityHeaders(), // 添加安全响应头
-        httpx.DefaultCORS(),
     )
 
     http.ListenAndServe(":8080", handler)
@@ -137,6 +141,7 @@ func (r *LoginReq) Validate(ctx context.Context) error {
 | `RateLimit` | 限流接口集成。 |
 | `AuthBearer`/`Basic`| 认证 Token 提取与校验。 |
 | `ShutdownManager` | **长连接优雅关闭管理器** (适用于 WebSocket/SSE)。 |
+| `Router` | 增强版 `ServeMux`，支持 `Group` 路由组和 Method+Path 绑定。 |
 
 ### 进阶：长连接优雅关闭
 
