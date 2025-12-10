@@ -255,7 +255,7 @@ type QueryBinder struct{}
 func (b *QueryBinder) Name() string     { return "query" }
 func (b *QueryBinder) Type() BinderType { return BinderMeta }
 func (b *QueryBinder) Match(r *http.Request) bool {
-	return len(r.URL.Query()) > 0
+	return r.URL.RawQuery != ""
 }
 
 func (b *QueryBinder) Bind(r *http.Request, v any) error {
