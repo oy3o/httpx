@@ -22,6 +22,7 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 	cfg := &config{
 		validator:   Validator,
 		binders:     Binders,
+		errorFunc:   Error,
 		errorHook:   ErrorHook,
 		maxBodySize: 2 << 20,
 	}
@@ -64,6 +65,7 @@ func NewStreamHandler[Req any, Res Streamable](fn HandlerFunc[Req, Res], opts ..
 	cfg := &config{
 		validator:   Validator,
 		binders:     Binders,
+		errorFunc:   Error,
 		errorHook:   ErrorHook,
 		maxBodySize: 2 << 20,
 	}
@@ -91,6 +93,7 @@ func NewStreamHandler[Req any, Res Streamable](fn HandlerFunc[Req, Res], opts ..
 // 内部辅助函数，处理通用的请求准备工作
 func prepare[Req any, Res any](w http.ResponseWriter, r *http.Request, cfg *config, fn HandlerFunc[Req, Res]) (res Res, traceID string, ok bool) {
 	ctx := r.Context()
+	errFunc := cfg.errorFunc
 
 	// 1. 应用 Body 大小限制
 	if cfg.maxBodySize > 0 {
@@ -107,17 +110,17 @@ func prepare[Req any, Res any](w http.ResponseWriter, r *http.Request, cfg *conf
 		// 如果是因为 Body 太大导致的错误，返回 413
 		var maxBytesErr *http.MaxBytesError
 		if cfg.maxBodySize > 0 && errors.As(err, &maxBytesErr) {
-			Error(w, r, ErrRequestEntityTooLarge, cfg.errorHook)
+			errFunc(w, r, ErrRequestEntityTooLarge, WithHook(cfg.errorHook))
 			return
 		}
-		Error(w, r, &HttpError{HttpCode: http.StatusBadRequest, Msg: err.Error()}, cfg.errorHook)
+		errFunc(w, r, &HttpError{HttpCode: http.StatusBadRequest, Msg: err.Error()}, WithHook(cfg.errorHook))
 		return
 	}
 
 	// 3. 验证 (Validation)
 	// 传入配置中的 validator 实例
 	if err := Validate(ctx, &req, cfg.validator); err != nil {
-		Error(w, r, err, cfg.errorHook) // Validate 返回的通常已经是 HttpError (400)
+		errFunc(w, r, err, WithHook(cfg.errorHook)) // Validate 返回的通常已经是 HttpError (400)
 		return
 	}
 
@@ -125,12 +128,12 @@ func prepare[Req any, Res any](w http.ResponseWriter, r *http.Request, cfg *conf
 	// 直接传递标准 Context
 	res, err := fn(ctx, &req)
 	if err != nil {
-		Error(w, r, err, cfg.errorHook)
+		errFunc(w, r, err, WithHook(cfg.errorHook))
 		return
 	}
 
 	// 5. 处理成功路径: 自动在 Response Header 中注入 TraceID
-	// 失败路径: Error 内部处理
+	// 失败路径: errFunc 内部处理
 	// 这样无论业务逻辑是否成功，客户端都能通过 Header 拿到 TraceID
 	if GetTraceID != nil {
 		traceID = GetTraceID(ctx)

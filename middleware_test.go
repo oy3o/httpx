@@ -53,16 +53,16 @@ func TestRecovery(t *testing.T) {
 	})
 
 	loggerCalled := false
-	logger := func(ctx context.Context, err interface{}) {
+	logger := func(ctx context.Context, err error) {
 		loggerCalled = true
-		assert.Equal(t, "oops", err)
+		assert.Equal(t, "panic: oops", err.Error())
 	}
 
 	r := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
 
 	// Wrap with Recovery
-	h := Recovery(logger)(panicHandler)
+	h := Recovery(WithHook(logger))(panicHandler)
 
 	// Should not panic the test
 	assert.NotPanics(t, func() {

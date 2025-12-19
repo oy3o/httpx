@@ -161,7 +161,6 @@ var Binders = []Binder{
 	&QueryBinder{},
 	&JsonBinder{DisallowUnknownFields: true},
 	&FormBinder{MaxMemory: DefaultMultipartMemory},
-	&ClientAuthBinder{},
 }
 
 // Bind 自动选择绑定器处理请求

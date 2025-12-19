@@ -30,7 +30,13 @@ type AuthStrategy func(w http.ResponseWriter, r *http.Request) (any, error)
 
 // Auth 通用的认证中间件构造器。
 // 它负责通用的“管道工作”：调用策略 -> 处理错误 -> 注入Context -> 继续执行。
-func Auth(strategy AuthStrategy) Middleware {
+func Auth(strategy AuthStrategy, Errors ...ErrorFunc) Middleware {
+	var errorFunc ErrorFunc
+	if len(Errors) > 0 {
+		errorFunc = Errors[0]
+	} else {
+		errorFunc = Error
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// 1. 执行策略
@@ -39,7 +45,7 @@ func Auth(strategy AuthStrategy) Middleware {
 			if err != nil {
 				if _, ok := err.(*HttpError); ok {
 					// 错误处理委托给 httpx.Error
-					Error(w, r, err, nil)
+					errorFunc(w, r, err)
 					return
 				} else {
 					// 传递给 challengeWith

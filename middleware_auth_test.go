@@ -173,15 +173,10 @@ func TestAuthMiddleware_Integration(t *testing.T) {
 	})
 
 	t.Run("Challenge Path", func(t *testing.T) {
+		w := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
 		// 没带任何凭证
-		w := httptest.NewRecorder()
-
 		handler.ServeHTTP(w, r)
-
-		// 由于 Auth 中间件使用了 httpx.Error，这里我们需要确保 Error 函数能正确处理 HttpError.Headers
-		// (假设 Error 函数已经按照之前讨论的逻辑实现了)
-		// 这里只验证中间件是否 correctly returned (在没有 ErrorHook 劫持的情况下，httpx.Error 通常会写 Response)
 
 		// 检查 Header 是否存在
 		authHead := w.Header().Get("WWW-Authenticate")

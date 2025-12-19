@@ -14,6 +14,7 @@ func NewResponder[Req any, Res Responder](fn HandlerFunc[Req, Res], opts ...Opti
 	cfg := &config{
 		validator:   Validator,
 		binders:     Binders,
+		errorFunc:   Error,
 		errorHook:   ErrorHook,
 		maxBodySize: 2 << 20,
 	}

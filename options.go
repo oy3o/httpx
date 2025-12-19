@@ -10,6 +10,7 @@ type config struct {
 	noEnvelope  bool
 	validator   *validator.Validate
 	binders     []Binder
+	errorFunc   ErrorFunc
 	errorHook   func(ctx context.Context, err error)
 	maxBodySize int64
 }
@@ -41,6 +42,13 @@ func WithBinders(b ...Binder) Option {
 func AddBinders(b ...Binder) Option {
 	return func(c *config) {
 		c.binders = append(b, c.binders...)
+	}
+}
+
+// WithErrorFunc 设置该 Handler 专属的错误处理器
+func WithErrorFunc(handler ErrorFunc) Option {
+	return func(c *config) {
+		c.errorFunc = handler
 	}
 }
 

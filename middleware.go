@@ -1,7 +1,6 @@
 package httpx
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 
@@ -20,20 +19,16 @@ func Chain(h http.Handler, mws ...Middleware) http.Handler {
 }
 
 // Recovery 捕获 Panic 防止服务崩溃
-func Recovery(panicHook func(ctx context.Context, err interface{})) Middleware {
+func Recovery(opts ...ErrorOption) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
-				if err := recover(); err != nil {
-					if panicHook != nil {
-						panicHook(r.Context(), err)
+				if val := recover(); val != nil {
+					if err, ok := val.(error); ok {
+						Error(w, r, err, opts...)
+					} else {
+						Error(w, r, fmt.Errorf("panic: %v", val), opts...)
 					}
-					w.WriteHeader(http.StatusInternalServerError)
-					Error(w, r, &HttpError{
-						HttpCode: 500,
-						BizCode:  "PANIC",
-						Msg:      fmt.Sprintf("panic: %v", err),
-					})
 				}
 			}()
 			next.ServeHTTP(w, r)

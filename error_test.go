@@ -48,7 +48,7 @@ func TestError_GenericFallback(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Contains(t, w.Body.String(), CodeInternalError)
-	assert.Contains(t, w.Body.String(), "unknown db error")
+	assert.Contains(t, w.Body.String(), "INTERNAL_ERROR")
 }
 
 // TestError_SafeMode 验证敏感信息脱敏
