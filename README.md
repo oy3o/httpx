@@ -130,7 +130,37 @@ Separates **HTTP Status** from **Business Code**. Automatically injects `X-Trace
 *   **`WithMaxBodySize(bytes)`**: Limits the request body size. Returns `413 Entity Too Large` if exceeded.
 *   **`WithMultipartLimit(bytes)`**: Limits memory usage during file uploads. Excess data spills to disk.
 
-## Middleware Ecosystem
+### 5. Custom Response Control (Responder)
+
+The `httpx.Responder` interface allows the business layer to take full control of response writing. This is useful for **redirects**, **file downloads**, or **content negotiation** (e.g., supporting both JSON API and Form submission).
+
+```go
+// 1. Define Response struct and implement Responder
+type LoginRes struct {
+    Token    string
+    ReturnTo string
+}
+
+func (res *LoginRes) WriteResponse(w http.ResponseWriter, r *http.Request) {
+    // Example: Return JSON or Redirect based on Accept header
+    if r.Header.Get("Accept") == "application/json" {
+        json.NewEncoder(w).Encode(res)
+        return
+    }
+    http.Redirect(w, r, res.ReturnTo, http.StatusFound)
+}
+
+// 2. Register using NewResponder
+r.Handle("POST /login", httpx.NewResponder(LoginHandler))
+```
+
+Additionally, httpx provides built-in primitives:
+
+*   `httpx.Redirect{URL, Code}`: Pure redirect.
+*   `httpx.RawBytes{Body, ContentType}`: Write raw bytes.
+*   `httpx.NoContent{}`: Returns 204 No Content.
+
+### 6. Middleware Ecosystem
 
 | Middleware | Description |
 | :--- | :--- |

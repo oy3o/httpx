@@ -129,7 +129,37 @@ func (r *LoginReq) Validate(ctx context.Context) error {
 *   **`WithMaxBodySize(bytes)`**: 限制 Request Body 大小。超过限制返回 `413 Entity Too Large`，并切断连接，防止内存耗尽攻击。
 *   **`WithMultipartLimit(bytes)`**: 限制文件上传时的内存占用，超限部分自动落盘。
 
-## 中间件生态
+### 5. 自定义响应 (Responder)
+
+`httpx.Responder` 接口允许业务层完全接管响应写入逻辑，适用于 **重定向**、**文件下载** 或 **动态内容协商**（如同时支持 JSON API 和 Form 表单提交）。
+
+```go
+// 1. 定义响应结构并实现 Responder 接口
+type LoginRes struct {
+    Token    string
+    ReturnTo string // 跳转地址
+}
+
+func (res *LoginRes) WriteResponse(w http.ResponseWriter, r *http.Request) {
+    // 示例：根据客户端类型决定返回 JSON 还是重定向
+    if r.Header.Get("Accept") == "application/json" {
+        json.NewEncoder(w).Encode(res)
+        return
+    }
+    http.Redirect(w, r, res.ReturnTo, http.StatusFound)
+}
+
+// 2. 注册时使用 NewResponder
+r.Handle("POST /login", httpx.NewResponder(LoginHandler))
+```
+
+此外，httpx 提供了一些内置的原语：
+
+*   `httpx.Redirect{URL, Code}`: 纯重定向。
+*   `httpx.RawBytes{Body, ContentType}`: 直接写入字节流。
+*   `httpx.NoContent{}`: 返回 204 No Content。
+
+### 6. 中间件生态
 
 | 中间件 | 说明 |
 | :--- | :--- |
@@ -168,3 +198,4 @@ func websocketHandler(w http.ResponseWriter, r *http.Request) {
 // 4. 服务停止时调用
 mgr.Shutdown(ctx) // 并发执行所有注册的清理回调
 ```
+
