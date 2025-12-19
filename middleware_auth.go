@@ -2,122 +2,152 @@ package httpx
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 )
 
-// AuthValidator 定义验证回调函数签名。
-// 返回的 any 将被注入到 Context 中（例如 User 对象）。
-type AuthValidator func(ctx context.Context, token string) (any, error)
+// ErrNoCredentials 是一个特定的信号错误。
+// 当策略返回此错误时，AuthChain 会忽略它并尝试下一个策略。
+var ErrNoCredentials = errors.New("no credentials found")
 
-type contextKey string
-
-const IdentityKey contextKey = "identity"
+type IdentityKey struct{}
 
 // GetIdentity 从 Context 中获取身份信息。
 func GetIdentity(ctx context.Context) any {
-	return ctx.Value(IdentityKey)
+	return ctx.Value(IdentityKey{})
 }
 
-// AuthBearer Bearer Token 认证中间件。
-// realm: 认证域名称，例如 "MyAPI"。如果为空，默认为 "Restricted"。
-func AuthBearer(validator AuthValidator, realm string) Middleware {
-	if realm == "" {
-		realm = "Restricted"
-	}
-	// 提前组装 Header，避免每次请求都进行字符串拼接
-	// WWW-Authenticate 头通常只在 Header 认证失败时需要严格遵循格式
-	// 但为了统一，我们保持原样
-	authHeader := `Bearer realm="` + realm + `"`
-	errHeader := `Bearer realm="` + realm + `", error="invalid_token"`
+// AuthStrategy 定义从请求中提取身份的原子策略。
+type AuthStrategy func(w http.ResponseWriter, r *http.Request) (any, error)
 
+// Auth 通用的认证中间件构造器。
+// 它负责通用的“管道工作”：调用策略 -> 处理错误 -> 注入Context -> 继续执行。
+func Auth(strategy AuthStrategy) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var token string
+			// 1. 执行策略
+			identity, err := strategy(w, r)
+			// 如果没有返回一个 http 错误, 我们忽略它, 通过要求身份的中间件进行拦截, 这里仅尝试识别身份
+			if _, ok := err.(*HttpError); ok {
+				// 错误处理委托给 httpx.Error
+				Error(w, r, err, nil)
+				return
+			}
 
-			// 1. 尝试从 Header 获取
-			auth := r.Header.Get("Authorization")
-			if auth != "" {
-				const prefix = "Bearer "
-				if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
-					w.Header().Set("WWW-Authenticate", authHeader)
-					Error(w, r, &HttpError{
-						HttpCode: http.StatusUnauthorized,
-						BizCode:  "Unauthorized",
-						Msg:      "invalid bearer format",
-					})
-					return
+			// 2. 注入身份
+			if identity != nil {
+				ctx := context.WithValue(r.Context(), IdentityKey{}, identity)
+				r = r.WithContext(ctx)
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// AuthRequired 认证中间件，要求必须提供身份。
+func AuthRequired(challengeWith http.HandlerFunc) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if GetIdentity(r.Context()) == nil {
+				challengeWith(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// AuthChain 职责链模式：按顺序尝试多种认证策略。
+// 逻辑：
+// 1. 如果策略成功 -> 立即返回身份。
+// 2. 如果策略返回 ErrNoCredentials -> 继续尝试下一个。
+// 3. 如果策略返回其他错误（如 Token 过期/签名错误） -> 立即终止并报错（不进行降级）。
+// 4. 如果所有策略都未命中 -> 返回 ErrNoCredentials。
+func AuthChain(strategies ...AuthStrategy) AuthStrategy {
+	return func(w http.ResponseWriter, r *http.Request) (any, error) {
+		for _, strategy := range strategies {
+			identity, err := strategy(w, r)
+			if err == nil {
+				return identity, nil
+			}
+			// 只有在“未找到凭证”时才继续，验证失败是致命错误
+			if !errors.Is(err, ErrNoCredentials) {
+				return nil, err
+			}
+		}
+		return nil, ErrNoCredentials
+	}
+}
+
+// WithAuthChallenge 装饰器：为 ErrNoCredentials 错误附加 Challenge Header。
+// 当策略链彻底失败（即客户端完全未提供凭证）时，此装饰器将错误转换为
+// 带有 WWW-Authenticate 的 401 错误。
+func WithAuthChallenge(strategy AuthStrategy, headerKey, headerVal string) AuthStrategy {
+	return func(w http.ResponseWriter, r *http.Request) (any, error) {
+		identity, err := strategy(w, r)
+		if err != nil {
+			// 如果是“未提供凭证”，则告诉客户端应该提供什么
+			if w != nil && errors.Is(err, ErrNoCredentials) {
+				if headerKey == "" {
+					headerKey = "WWW-Authenticate"
 				}
-				token = auth[len(prefix):]
-			} else {
-				// 2. 尝试从 Query 获取
-				// Query 参数通常直接包含 token，没有 "Bearer " 前缀
-				token = r.URL.Query().Get("access_token")
-			}
+				if headerVal == "" {
+					headerVal = "Bearer realm=\"oidc\", error=\"invalid_token\""
+				}
+				w.Header().Set(headerKey, headerVal)
 
-			if token == "" {
-				w.Header().Set("WWW-Authenticate", authHeader)
-				Error(w, r, &HttpError{
+				return nil, &HttpError{
 					HttpCode: http.StatusUnauthorized,
 					BizCode:  "Unauthorized",
-					Msg:      "token missing",
-				})
-				return
+					Msg:      "authentication required",
+				}
 			}
-
-			identity, err := validator(r.Context(), token)
-			if err != nil {
-				w.Header().Set("WWW-Authenticate", errHeader)
-				Error(w, r, &HttpError{
-					HttpCode: http.StatusUnauthorized,
-					BizCode:  "Unauthorized",
-					Msg:      "invalid token",
-				})
-				return
-			}
-
-			ctx := context.WithValue(r.Context(), IdentityKey, identity)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+			// 如果是具体的验证错误，通常策略内部已经设置了具体的 Challenge (例如 invalid_token)
+			return nil, err
+		}
+		return identity, nil
 	}
 }
 
-// BasicValidator 定义 Basic Auth 验证回调。
-type BasicValidator func(ctx context.Context, user, pass string) (any, error)
+// ---------------------------------------------------------------------------
+// 常用策略原子 (Strategy Primitives)
+// ---------------------------------------------------------------------------
 
-// AuthBasic Basic Auth 认证中间件。
-func AuthBasic(validator BasicValidator, realm string) Middleware {
-	if realm == "" {
-		realm = "Restricted"
+// FromHeader 创建一个从 Header 提取凭证的策略。
+// scheme: 认证前缀，如 "Bearer", "Basic", "DPoP"。不区分大小写。
+func FromHeader(scheme string, validator func(context.Context, string) (any, error)) AuthStrategy {
+	prefix := scheme + " "
+	return func(w http.ResponseWriter, r *http.Request) (any, error) {
+		auth := r.Header.Get("Authorization")
+		if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
+			return nil, ErrNoCredentials
+		}
+		return validator(r.Context(), auth[len(prefix):])
 	}
-	authHeader := `Basic realm="` + realm + `"`
+}
 
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			user, pass, ok := r.BasicAuth()
-			if !ok {
-				w.Header().Set("WWW-Authenticate", authHeader)
-				Error(w, r, &HttpError{
-					HttpCode: http.StatusUnauthorized,
-					BizCode:  "Unauthorized",
-					Msg:      "invalid basic format",
-				})
-				return
-			}
+// FromCookie 创建一个从 Cookie 提取凭证的策略。
+// 它透明地使用 httpx.GetCookie，自动支持 __Host- 和 __Secure- 前缀防御。
+func FromCookie(name string, validator func(context.Context, string) (any, error)) AuthStrategy {
+	return func(w http.ResponseWriter, r *http.Request) (any, error) {
+		// 这里是关键：我们不使用 r.Cookie(name)，而是使用智能的 GetCookie
+		val, err := GetCookie(r, name)
+		if err != nil {
+			return nil, ErrNoCredentials
+		}
+		return validator(r.Context(), val)
+	}
+}
 
-			identity, err := validator(r.Context(), user, pass)
-			if err != nil {
-				w.Header().Set("WWW-Authenticate", authHeader)
-				Error(w, r, &HttpError{
-					HttpCode: http.StatusUnauthorized,
-					BizCode:  "Unauthorized",
-					Msg:      "invalid basic format",
-				})
-				return
-			}
-
-			ctx := context.WithValue(r.Context(), IdentityKey, identity)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
+// FromQuery 创建一个从 URL Query 提取凭证的策略。
+func FromQuery(param string, validator func(context.Context, string) (any, error)) AuthStrategy {
+	return func(w http.ResponseWriter, r *http.Request) (any, error) {
+		val := r.URL.Query().Get(param)
+		if val == "" {
+			return nil, ErrNoCredentials
+		}
+		return validator(r.Context(), val)
 	}
 }

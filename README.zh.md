@@ -129,7 +129,23 @@ func (r *LoginReq) Validate(ctx context.Context) error {
 *   **`WithMaxBodySize(bytes)`**: 限制 Request Body 大小。超过限制返回 `413 Entity Too Large`，并切断连接，防止内存耗尽攻击。
 *   **`WithMultipartLimit(bytes)`**: 限制文件上传时的内存占用，超限部分自动落盘。
 
-### 5. 自定义响应 (Responder)
+### 5. 智能 Cookie 防护 (Auto Armor)
+
+`httpx` 默认强制使用 Cookie 安全最佳实践，自动屏蔽各类 Cookie 攻击，同时对开发者保持透明。
+
+*   **前缀感知 (Prefix Awareness)**: 自动为 Cookie 添加 `__Host-` 或 `__Secure-` 前缀，提供浏览器级的 **Cookie Tossing** 攻击防御。
+*   **优先级探测 (Priority Probing)**: 读取 Cookie 时，优先读取安全变体 (`__Host-name` > `__Secure-name` > `name`)，确保即使攻击者植入了不安全的同名 Cookie，系统也会优先读取安全的那个。
+*   **饱和式清除 (Nuke Strategy)**: `DelCookie` 会尝试删除所有可能的变体，确保 Cookie 被彻底清除。
+
+```go
+// 如果 Secure=true (默认) 且 Path="/"，自动转换为 "__Host-session_id"
+httpx.SetCookie(w, "session_id", "secret", httpx.WithCookieTTL(24 * time.Hour))
+
+// 安全地读取 "__Host-session_id"，自动安全降级但不妥协
+val, err := httpx.GetCookie(r, "session_id")
+```
+
+### 6. 自定义响应 (Responder)
 
 `httpx.Responder` 接口允许业务层完全接管响应写入逻辑，适用于 **重定向**、**文件下载** 或 **动态内容协商**（如同时支持 JSON API 和 Form 表单提交）。
 
@@ -159,7 +175,7 @@ r.Handle("POST /login", httpx.NewResponder(LoginHandler))
 *   `httpx.RawBytes{Body, ContentType}`: 直接写入字节流。
 *   `httpx.NoContent{}`: 返回 204 No Content。
 
-### 6. 中间件生态
+### 7. 中间件生态
 
 | 中间件 | 说明 |
 | :--- | :--- |
@@ -169,10 +185,10 @@ r.Handle("POST /login", httpx.NewResponder(LoginHandler))
 | `SecurityHeaders`| 注入 `X-Frame-Options`, `X-XSS-Protection` 等安全头。 |
 | `CORS` | 灵活的跨域配置。 |
 | `RateLimit` | 限流接口集成。 |
-| `AuthBearer`/`Basic`| 认证 Token 提取与校验。 |
+| `Auth` | **灵活的认证策略**。支持 `AuthChain` (多策略尝试), `FromHeader`, `FromCookie`, `FromQuery`。 |
 | `ShutdownManager` | **长连接优雅关闭管理器** (适用于 WebSocket/SSE)。 |
 | `Router` | 增强版 `ServeMux`，支持 `Group` 路由组和 Method+Path 绑定。 |
-| `ClientIP` | 提取真实客户端 IP 的中间件（支持 **可信代理** CIDR 配置）。 |
+| `ClientIP` | 提取真实客户端 IP 的中间件（支持 **可信代理 CIDR** 配置）。 |
 
 ### 进阶：长连接优雅关闭
 

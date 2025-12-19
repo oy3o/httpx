@@ -130,7 +130,23 @@ Separates **HTTP Status** from **Business Code**. Automatically injects `X-Trace
 *   **`WithMaxBodySize(bytes)`**: Limits the request body size. Returns `413 Entity Too Large` if exceeded.
 *   **`WithMultipartLimit(bytes)`**: Limits memory usage during file uploads. Excess data spills to disk.
 
-### 5. Custom Response Control (Responder)
+### 5. Smart Cookie Protection (Auto Armor)
+
+`httpx` forces security best practices for Cookies by default, but remains developer-friendly.
+
+*   **Prefix Awareness**: Automatically adds `__Host-` or `__Secure-` prefixes to cookies when possible, providing browser-level protection against **Cookie Tossing** attacks.
+*   **Priority Probing**: When reading cookies, it prioritizes the secure variants (`__Host-name` > `__Secure-name` > `name`), ensuring that even if an attacker plants a non-secure cookie, your app reads the secure one.
+*   **Nuke Strategy**: `DelCookie` performs a saturation attack, attempting to delete all possible variants of a cookie to ensure it's truly gone.
+
+```go
+// Automatically becomes "__Host-session_id" if Secure=true (default) and Path="/"
+httpx.SetCookie(w, "session_id", "secret", httpx.WithCookieTTL(24 * time.Hour))
+
+// Safely reads "__Host-session_id" if it exists, ignoring insecure "session_id"
+val, err := httpx.GetCookie(r, "session_id")
+```
+
+### 6. Custom Response Control (Responder)
 
 The `httpx.Responder` interface allows the business layer to take full control of response writing. This is useful for **redirects**, **file downloads**, or **content negotiation** (e.g., supporting both JSON API and Form submission).
 
@@ -160,7 +176,7 @@ Additionally, httpx provides built-in primitives:
 *   `httpx.RawBytes{Body, ContentType}`: Write raw bytes.
 *   `httpx.NoContent{}`: Returns 204 No Content.
 
-### 6. Middleware Ecosystem
+### 7. Middleware Ecosystem
 
 | Middleware | Description |
 | :--- | :--- |
@@ -170,10 +186,10 @@ Additionally, httpx provides built-in primitives:
 | `SecurityHeaders` | Adds `X-Frame-Options`, `X-Content-Type-Options`, `X-XSS-Protection`, etc. |
 | `CORS` | Flexible Cross-Origin Resource Sharing configuration. |
 | `RateLimit` | Rate limiting interface integration. |
-| `AuthBearer`/`Basic`| Token extraction and validation. |
+| `Auth` | **Flexible Auth Strategy**. Supports `AuthChain` (try multiple strategies), `FromHeader`, `FromCookie`, `FromQuery`. |
 | `ShutdownManager` | Manages graceful shutdown for long-lived connections (WebSocket/SSE). |
 | `Router` | Enhanced `ServeMux` with `Group` support and Method+Path handling. |
-| `ClientIP` | Middleware to extract real client IP with **Trusted Proxy** support. |
+| `ClientIP` | Middleware to extract real client IP with **Trusted Proxy** support (CIDR). |
 
 ### Advanced: Graceful Shutdown for Long Connections
 
