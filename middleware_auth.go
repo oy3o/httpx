@@ -11,11 +11,18 @@ import (
 // 当策略返回此错误时，AuthChain 会忽略它并尝试下一个策略。
 var ErrNoCredentials = errors.New("no credentials found")
 
-type IdentityKey struct{}
+type (
+	IdentityKey  struct{}
+	AuthErrorKey struct{}
+)
 
 // GetIdentity 从 Context 中获取身份信息。
 func GetIdentity(ctx context.Context) any {
 	return ctx.Value(IdentityKey{})
+}
+
+func GetAuthError(ctx context.Context) error {
+	return ctx.Value(AuthErrorKey{}).(error)
 }
 
 // AuthStrategy 定义从请求中提取身份的原子策略。
@@ -29,10 +36,16 @@ func Auth(strategy AuthStrategy) Middleware {
 			// 1. 执行策略
 			identity, err := strategy(w, r)
 			// 如果没有返回一个 http 错误, 我们忽略它, 通过要求身份的中间件进行拦截, 这里仅尝试识别身份
-			if _, ok := err.(*HttpError); ok {
-				// 错误处理委托给 httpx.Error
-				Error(w, r, err, nil)
-				return
+			if err != nil {
+				if _, ok := err.(*HttpError); ok {
+					// 错误处理委托给 httpx.Error
+					Error(w, r, err, nil)
+					return
+				} else {
+					// 传递给 challengeWith
+					ctx := context.WithValue(r.Context(), AuthErrorKey{}, err)
+					r = r.WithContext(ctx)
+				}
 			}
 
 			// 2. 注入身份
