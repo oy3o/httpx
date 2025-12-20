@@ -18,6 +18,19 @@ func NewRouter() *Router {
 	}
 }
 
+// With returns a new Router that shares the same underlying ServeMux but applies additional middleware.
+// Handlers registered on the returned Router are registered on the original ServeMux.
+func (r *Router) With(middleware ...func(http.Handler) http.Handler) *Router {
+	mws := make([]func(http.Handler) http.Handler, len(r.middlewares)+len(middleware))
+	copy(mws, r.middlewares)
+	copy(mws[len(r.middlewares):], middleware)
+
+	return &Router{
+		mux:         r.mux,
+		middlewares: mws,
+	}
+}
+
 // Group creates a sub-router mounted at the specified pattern configuration.
 // The pattern should be a path prefix like "/api/v1".
 // Accessing the sub-router via the pattern will strip the pattern prefix.

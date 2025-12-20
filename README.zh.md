@@ -74,6 +74,8 @@ func main() {
     
     // 4. 为组添加中间件
     // admin组的所有请求都会经过 AdminAuthMiddleware
+    // 使用 With 可以在不改变路径的情况下添加中间件
+    // 例如: v1.With(AuthMiddleware).Handle(...)
     admin := r.Group("/admin", AdminAuthMiddleware)
     admin.Handle("DELETE /users/{id}", httpx.NewHandler(DeleteUser))
 

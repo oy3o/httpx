@@ -75,6 +75,8 @@ func main() {
     
     // 4. Apply Middleware to Group
     // api.Use(httpx.AuthMiddleware) - Coming soon, currently via Group(pattern, middlewares...)
+    // Use With to apply middleware to the current group without changing the path
+    // e.g. v1.With(AuthMiddleware).Handle(...)
     admin := r.Group("/admin", AdminAuthMiddleware)
     admin.Handle("DELETE /users/{id}", httpx.NewHandler(DeleteUser))
 
