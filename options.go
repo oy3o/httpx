@@ -7,12 +7,14 @@ import (
 )
 
 type config struct {
-	noEnvelope  bool
-	validator   *validator.Validate
-	binders     []Binder
-	errorFunc   ErrorFunc
-	errorHook   func(ctx context.Context, err error)
-	maxBodySize int64
+	noEnvelope          bool
+	validator           *validator.Validate
+	binders             []Binder
+	errorFunc           ErrorFunc
+	errorHook           func(ctx context.Context, err error)
+	maxBodySize         int64
+	noVarySearch        []string
+	disableNoVarySearch bool
 }
 
 type Option func(*config)
@@ -100,5 +102,26 @@ func WithMultipartLimit(limit int64) Option {
 func WithMaxBodySize(maxBytes int64) Option {
 	return func(c *config) {
 		c.maxBodySize = maxBytes
+	}
+}
+
+// WithNoVarySearch 手动指定 No-Vary-Search 头部允许的参数列表。
+// 如果不指定 (默认)，将自动使用 Req 结构体中定义的参数作为 allowlist (No-Vary-Search: params, except=(...))。
+// 传入的 keys 将被视为允许变化的参数 (except 列表)。
+// 如果传入空且未禁用，将生成 "No-Vary-Search: params" (忽略所有参数)。
+func WithNoVarySearch(keys ...string) Option {
+	return func(c *config) {
+		c.noVarySearch = keys
+		// 显式设置为空 slice (非 nil) 以区别于默认行为
+		if c.noVarySearch == nil {
+			c.noVarySearch = []string{}
+		}
+	}
+}
+
+// DisableNoVarySearch 禁用 No-Vary-Search 头部的自动生成。
+func DisableNoVarySearch() Option {
+	return func(c *config) {
+		c.disableNoVarySearch = true
 	}
 }

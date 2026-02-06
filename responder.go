@@ -22,7 +22,13 @@ func NewResponder[Req any, Res Responder](fn HandlerFunc[Req, Res], opts ...Opti
 		opt(cfg)
 	}
 
+	nvHeader := buildNoVarySearch[Req](cfg)
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		if nvHeader != "" {
+			w.Header().Set("No-Vary-Search", nvHeader)
+		}
+
 		// 复用通用的绑定、验证和执行逻辑
 		res, _, ok := prepare(w, r, cfg, fn)
 		if !ok {

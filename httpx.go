@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"reflect"
+	"strings"
 
 	"github.com/bytedance/sonic"
 )
@@ -31,7 +33,15 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 		opt(cfg)
 	}
 
+	// 计算 No-Vary-Search 头 (一次性计算)
+	nvHeader := buildNoVarySearch[Req](cfg)
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		// 设置 No-Vary-Search 头
+		if nvHeader != "" {
+			w.Header().Set("No-Vary-Search", nvHeader)
+		}
+
 		res, traceID, ok := prepare(w, r, cfg, fn)
 		if !ok {
 			return
@@ -74,7 +84,13 @@ func NewStreamHandler[Req any, Res Streamable](fn HandlerFunc[Req, Res], opts ..
 		opt(cfg)
 	}
 
+	nvHeader := buildNoVarySearch[Req](cfg)
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		if nvHeader != "" {
+			w.Header().Set("No-Vary-Search", nvHeader)
+		}
+
 		res, _, ok := prepare(w, r, cfg, fn)
 		if !ok {
 			return
@@ -143,4 +159,41 @@ func prepare[Req any, Res any](w http.ResponseWriter, r *http.Request, cfg *conf
 	}
 
 	return res, traceID, true
+}
+
+func buildNoVarySearch[Req any](cfg *config) string {
+	if cfg.disableNoVarySearch {
+		return ""
+	}
+
+	var keys []string
+	if cfg.noVarySearch != nil {
+		// 手动指定
+		keys = cfg.noVarySearch
+	} else {
+		// 自动推断
+		t := reflect.TypeOf((*Req)(nil))
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+		// 只有 struct 才有元数据
+		if t.Kind() == reflect.Struct {
+			meta := getStructMeta(t)
+			keys = meta.formKeys
+		}
+	}
+
+	if len(keys) == 0 {
+		return "key-order, params"
+	}
+	// 简单去重
+	seen := make(map[string]struct{}, len(keys))
+	unique := make([]string, 0, len(keys))
+	for _, k := range keys {
+		if _, ok := seen[k]; !ok {
+			seen[k] = struct{}{}
+			unique = append(unique, "\""+k+"\"")
+		}
+	}
+	return "key-order, params, except=(" + strings.Join(unique, " ") + ")"
 }

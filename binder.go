@@ -37,6 +37,9 @@ type structMeta struct {
 	// 使用 int 指针或 -1 代表不存在，这里为了内存对齐和简单，使用 int，初始化为 -1
 	clientIDIdx     int
 	clientSecretIdx int
+
+	// formKeys collecting for No-Vary-Search
+	formKeys []string
 }
 
 type pathFieldInfo struct {
@@ -107,6 +110,9 @@ func getStructMeta(t reflect.Type) *structMeta {
 			if meta.clientSecretIdx == -1 && mapKey == "client_secret" && field.Type.Kind() == reflect.String {
 				meta.clientSecretIdx = i
 			}
+
+			// 收集 Query 参数用于 No-Vary-Search
+			meta.formKeys = append(meta.formKeys, mapKey)
 
 			// A. 解析 Path 参数元数据
 			pathKey := field.Tag.Get("path")
