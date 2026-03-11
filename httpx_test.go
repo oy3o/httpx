@@ -300,7 +300,7 @@ func TestNoVarySearch(t *testing.T) {
 		r := httptest.NewRequest("GET", "/", nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
-		assert.Equal(t, "params", w.Header().Get("No-Vary-Search"))
+		assert.Equal(t, "key-order, params", w.Header().Get("No-Vary-Search"))
 	})
 
 	t.Run("Manual_Override", func(t *testing.T) {
@@ -308,7 +308,7 @@ func TestNoVarySearch(t *testing.T) {
 		r := httptest.NewRequest("GET", "/", nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
-		assert.Equal(t, "params, except=(\"custom_k\")", w.Header().Get("No-Vary-Search"))
+		assert.Equal(t, "key-order, params, except=(\"custom_k\")", w.Header().Get("No-Vary-Search"))
 	})
 
 	t.Run("Manual_Empty", func(t *testing.T) {
@@ -316,7 +316,7 @@ func TestNoVarySearch(t *testing.T) {
 		r := httptest.NewRequest("GET", "/", nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
-		assert.Equal(t, "params", w.Header().Get("No-Vary-Search"))
+		assert.Equal(t, "key-order, params", w.Header().Get("No-Vary-Search"))
 	})
 
 	t.Run("Disabled", func(t *testing.T) {

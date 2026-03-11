@@ -68,9 +68,9 @@ func bindFilesOptimized(r *http.Request, v any) error {
 			continue
 		}
 
-		fieldVal := val.Field(info.fieldIdx)
-		// 确保字段可设置
-		if !fieldVal.CanSet() {
+		fieldVal := getFieldByIndex(val, info.fieldIdx)
+		// 确保字段可设置，且能取到
+		if !fieldVal.IsValid() || !fieldVal.CanSet() {
 			continue
 		}
 

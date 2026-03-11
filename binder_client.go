@@ -40,17 +40,17 @@ func (b *ClientAuthBinder) Bind(r *http.Request, v any) error {
 	meta := getStructMeta(val.Type())
 
 	// 3. 填充 ClientID (如果结构体中对应字段为空)
-	if meta.clientIDIdx != -1 && uid != "" {
-		field := val.Field(meta.clientIDIdx)
-		if field.CanSet() && field.String() == "" {
+	if meta.clientIDIdx != nil && uid != "" {
+		field := getFieldByIndex(val, meta.clientIDIdx)
+		if field.IsValid() && field.CanSet() && field.String() == "" {
 			field.SetString(uid)
 		}
 	}
 
 	// 4. 填充 ClientSecret (如果结构体中对应字段为空)
-	if meta.clientSecretIdx != -1 && pwd != "" {
-		field := val.Field(meta.clientSecretIdx)
-		if field.CanSet() && field.String() == "" {
+	if meta.clientSecretIdx != nil && pwd != "" {
+		field := getFieldByIndex(val, meta.clientSecretIdx)
+		if field.IsValid() && field.CanSet() && field.String() == "" {
 			field.SetString(pwd)
 		}
 	}

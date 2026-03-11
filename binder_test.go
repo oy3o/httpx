@@ -281,3 +281,35 @@ func TestMultipart_FileBinding(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 }
+
+// TestReqNested 用于测试匿名嵌套结构体绑定
+type TestReqNestedBase struct {
+	BaseID string `path:"base_id"`
+}
+type TestReqNested struct {
+	TestReqNestedBase
+	Name   string `form:"name"`
+	Nested struct {
+		Age int `form:"age"`
+	}
+}
+
+func TestNestedAnonymousStructBinding(t *testing.T) {
+	handlerFunc := func(ctx context.Context, req *TestReqNested) (*TestRes, error) {
+		assert.Equal(t, "123", req.BaseID)
+		assert.Equal(t, "alice", req.Name)
+		return &TestRes{ID: "ok"}, nil
+	}
+
+	h := NewHandler(handlerFunc)
+
+	// 模拟带路径参数的请求
+	r := httptest.NewRequest("POST", "/test", bytes.NewBufferString("name=alice"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	r.SetPathValue("base_id", "123")
+	w := httptest.NewRecorder()
+
+	h.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
