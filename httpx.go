@@ -186,14 +186,45 @@ func buildNoVarySearch[Req any](cfg *config) string {
 	if len(keys) == 0 {
 		return "key-order, params"
 	}
-	// 简单去重
-	seen := make(map[string]struct{}, len(keys))
-	unique := make([]string, 0, len(keys))
+
+	// Calculate expected length to pre-allocate strings.Builder
+	// "key-order, params, except=(" is 27 chars
+	// Each key gets quotes, and spaces between keys.
+	expectedLen := 27 + len(keys)*4
 	for _, k := range keys {
-		if _, ok := seen[k]; !ok {
-			seen[k] = struct{}{}
-			unique = append(unique, "\""+k+"\"")
+		expectedLen += len(k)
+	}
+	expectedLen += 1 // For closing parenthesis
+
+	var sb strings.Builder
+	sb.Grow(expectedLen)
+	sb.WriteString("key-order, params, except=(")
+
+	// Since slice length is usually small, standard deduplication slice can be faster than map
+	// However, if we only deduplicate string pointers / content...
+	// Let's use a slice for deduplication to avoid map allocations.
+	seen := make([]string, 0, len(keys))
+
+	first := true
+	for _, k := range keys {
+		found := false
+		for _, s := range seen {
+			if s == k {
+				found = true
+				break
+			}
+		}
+		if !found {
+			seen = append(seen, k)
+			if !first {
+				sb.WriteByte(' ')
+			}
+			sb.WriteByte('"')
+			sb.WriteString(k)
+			sb.WriteByte('"')
+			first = false
 		}
 	}
-	return "key-order, params, except=(" + strings.Join(unique, " ") + ")"
+	sb.WriteByte(')')
+	return sb.String()
 }
