@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/bytedance/sonic"
 )
@@ -36,6 +37,13 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 	// 计算 No-Vary-Search 头 (一次性计算)
 	nvHeader := buildNoVarySearch[Req](cfg)
 
+	// 优化：针对泛型 Res 的复用池，避免每次请求装箱 Response[Res] 时分配内存
+	respPool := sync.Pool{
+		New: func() any {
+			return new(Response[Res])
+		},
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 设置 No-Vary-Search 头
 		if nvHeader != "" {
@@ -51,19 +59,27 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 
-		var body any = res
 		if !cfg.noEnvelope {
 			// 使用标准信封包裹，并自动填充 TraceID
-			resp := &Response[Res]{
-				Code:    CodeOK,
-				Message: "success",
-				Data:    res,
-				TraceID: traceID, // 自动注入
+			resp := respPool.Get().(*Response[Res])
+			resp.Code = CodeOK
+			resp.Message = "success"
+			resp.Data = res
+			resp.TraceID = traceID
+
+			if err := sonic.ConfigDefault.NewEncoder(w).Encode(resp); err != nil && cfg.errorHook != nil {
+				cfg.errorHook(r.Context(), err)
 			}
-			body = resp
+
+			// 清理引用，避免内存泄漏
+			var zero Res
+			resp.Data = zero
+			respPool.Put(resp)
+			return
 		}
 
-		if err := sonic.ConfigDefault.NewEncoder(w).Encode(body); err != nil && cfg.errorHook != nil {
+		// 无信封模式，直接返回 res
+		if err := sonic.ConfigDefault.NewEncoder(w).Encode(res); err != nil && cfg.errorHook != nil {
 			cfg.errorHook(r.Context(), err)
 		}
 	}
