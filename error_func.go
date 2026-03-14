@@ -6,10 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"syscall"
 
 	"github.com/bytedance/sonic"
 )
+
+var errorRespPool = sync.Pool{
+	New: func() any {
+		return &Response[any]{}
+	},
+}
 
 type ErrorFunc func(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOption)
 
@@ -136,6 +143,7 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 
 	// 8. 构建响应体
 	var resp any = err
+	var pooledResp *Response[any]
 
 	// 如果配置了 NoEnvelope，或者错误本身实现了 json.Marshaler (说明它想自己控制 JSON 格式，如 OIDC Error)
 	// 这是一个更智能的判断逻辑：
@@ -144,11 +152,12 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 
 	if !cfg.noEnvelope && !isSelfMarshaler {
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		resp = &Response[any]{
-			Code:    bizCode,
-			Message: msg,
-			TraceID: traceID,
-		}
+		pooledResp = errorRespPool.Get().(*Response[any])
+		pooledResp.Code = bizCode
+		pooledResp.Message = msg
+		pooledResp.TraceID = traceID
+		pooledResp.Data = nil
+		resp = pooledResp
 	} else {
 		// NoEnvelope 模式下，ContentType 可能需要根据业务调整，但通常 JSON 居多
 		if w.Header().Get("Content-Type") == "" {
@@ -159,12 +168,19 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	// 9. 写入 Body
 	if err := sonic.ConfigDefault.NewEncoder(w).Encode(resp); err != nil {
 		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+			if pooledResp != nil {
+				errorRespPool.Put(pooledResp)
+			}
 			return
 		}
 		// 如果写入响应失败，且有 hook，再次记录这个“错误的错误”
 		if cfg.hook != nil {
 			cfg.hook(r.Context(), fmt.Errorf("httpx: failed to write error response: %w", err))
 		}
+	}
+
+	if pooledResp != nil {
+		errorRespPool.Put(pooledResp)
 	}
 }
 
