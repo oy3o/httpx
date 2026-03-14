@@ -42,20 +42,19 @@ func TestShutdownManager_Lifecycle(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
+	// 使用共享 Client 并提前设置超时，避免并发修改导致的 Data Race
+	client := server.Client()
+	client.Timeout = 2 * time.Second
+
 	// Client 1
 	go func() {
 		defer wg.Done()
-		// 使用带超时的 client 防止测试死锁
-		client := server.Client()
-		client.Timeout = 2 * time.Second // Client timeout
 		_, _ = client.Get(server.URL + "?id=conn1")
 	}()
 
 	// Client 2
 	go func() {
 		defer wg.Done()
-		client := server.Client()
-		client.Timeout = 2 * time.Second
 		_, _ = client.Get(server.URL + "?id=conn2")
 	}()
 
