@@ -128,7 +128,7 @@ func prepare[Req any, Res any](w http.ResponseWriter, r *http.Request, cfg *conf
 	errFunc := cfg.errorFunc
 
 	// 1. 应用 Body 大小限制
-	if cfg.maxBodySize > 0 {
+	if cfg.maxBodySize > 0 && r.Body != nil && r.Body != http.NoBody {
 		// http.MaxBytesReader 会包装 r.Body。
 		// 当读取超过限制时，Read 会返回 error，并且 ResponseWriter 会被标记，
 		// 指示服务器应该关闭连接而不是复用。
