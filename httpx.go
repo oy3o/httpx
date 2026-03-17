@@ -67,7 +67,14 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 			resp.Data = res
 			resp.TraceID = traceID
 
-			if err := sonic.ConfigDefault.NewEncoder(w).Encode(resp); err != nil && cfg.errorHook != nil {
+			data, err := sonic.ConfigDefault.Marshal(resp)
+			if err == nil {
+				_, err = w.Write(data)
+				if err == nil {
+					_, err = w.Write([]byte("\n"))
+				}
+			}
+			if err != nil && cfg.errorHook != nil {
 				cfg.errorHook(r.Context(), err)
 			}
 
@@ -79,7 +86,14 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 		}
 
 		// 无信封模式，直接返回 res
-		if err := sonic.ConfigDefault.NewEncoder(w).Encode(res); err != nil && cfg.errorHook != nil {
+		data, err := sonic.ConfigDefault.Marshal(res)
+		if err == nil {
+			_, err = w.Write(data)
+			if err == nil {
+				_, err = w.Write([]byte("\n"))
+			}
+		}
+		if err != nil && cfg.errorHook != nil {
 			cfg.errorHook(r.Context(), err)
 		}
 	}

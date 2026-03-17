@@ -9,3 +9,7 @@
 ## 2026-03-15 - [Avoid Unnecessary MaxBytesReader Allocation on Empty Body]
 **Learning:** `http.MaxBytesReader` unconditionally wraps `r.Body` and creates a new object allocation. When handling standard read-only requests (like `GET`) that carry no payload (i.e. `r.Body == nil` or `r.Body == http.NoBody`), this allocation is unnecessary and adds overhead.
 **Action:** Always check `r.Body != nil && r.Body != http.NoBody` before applying `http.MaxBytesReader` to minimize memory allocations.
+
+## 2026-03-16 - [Replace Sonic NewEncoder with Marshal for Response Writing]
+**Learning:** Using `sonic.ConfigDefault.NewEncoder(w).Encode(resp)` creates significant stream encoder overhead and memory allocations (approx. 45% of total allocs in JSON response benchmarks) compared to `sonic.ConfigDefault.Marshal(resp)` followed by `w.Write(data)`. `NewEncoder` is optimized for large streaming data, but for typical API responses, `Marshal` to a `[]byte` and a single `Write` is significantly faster and allocates less memory.
+**Action:** Always prefer `sonic.ConfigDefault.Marshal` + `w.Write` over `sonic.ConfigDefault.NewEncoder(w).Encode` when writing JSON responses in HTTP handlers unless the response is a true large stream.

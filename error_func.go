@@ -166,7 +166,14 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	}
 
 	// 9. 写入 Body
-	if err := sonic.ConfigDefault.NewEncoder(w).Encode(resp); err != nil {
+	data, err := sonic.ConfigDefault.Marshal(resp)
+	if err == nil {
+		_, err = w.Write(data)
+		if err == nil {
+			_, err = w.Write([]byte("\n"))
+		}
+	}
+	if err != nil {
 		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
 			if pooledResp != nil {
 				errorRespPool.Put(pooledResp)
