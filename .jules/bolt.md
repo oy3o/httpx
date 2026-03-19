@@ -13,3 +13,7 @@
 ## 2026-03-16 - [Replace Sonic NewEncoder with Marshal for Response Writing]
 **Learning:** Using `sonic.ConfigDefault.NewEncoder(w).Encode(resp)` creates significant stream encoder overhead and memory allocations (approx. 45% of total allocs in JSON response benchmarks) compared to `sonic.ConfigDefault.Marshal(resp)` followed by `w.Write(data)`. `NewEncoder` is optimized for large streaming data, but for typical API responses, `Marshal` to a `[]byte` and a single `Write` is significantly faster and allocates less memory.
 **Action:** Always prefer `sonic.ConfigDefault.Marshal` + `w.Write` over `sonic.ConfigDefault.NewEncoder(w).Encode` when writing JSON responses in HTTP handlers unless the response is a true large stream.
+
+## 2026-03-18 - [Cache CORS Preflight Headers]
+**Learning:** `strings.Join` inside middleware handler functions creates unnecessary memory allocations on every request. For static configuration like CORS `AllowedMethods` and `AllowedHeaders`, this work should be done once when the middleware is initialized.
+**Action:** Always pre-calculate static string concatenations or joins outside of HTTP handler closures.

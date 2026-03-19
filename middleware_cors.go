@@ -31,6 +31,14 @@ func DefaultCORS() Middleware {
 
 // CORS 跨域资源共享中间件。
 func CORS(opts CORSOptions) Middleware {
+	// Pre-calculate allowed methods and headers to avoid allocation on every preflight request
+	allowedMethods := strings.Join(opts.AllowedMethods, ", ")
+	allowedHeaders := strings.Join(opts.AllowedHeaders, ", ")
+	var exposedHeaders string
+	if len(opts.ExposedHeaders) > 0 {
+		exposedHeaders = strings.Join(opts.ExposedHeaders, ", ")
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
@@ -75,10 +83,10 @@ func CORS(opts CORSOptions) Middleware {
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h.Set("Access-Control-Allow-Methods", strings.Join(opts.AllowedMethods, ", "))
-				h.Set("Access-Control-Allow-Headers", strings.Join(opts.AllowedHeaders, ", "))
-				if len(opts.ExposedHeaders) > 0 {
-					h.Set("Access-Control-Expose-Headers", strings.Join(opts.ExposedHeaders, ", "))
+				h.Set("Access-Control-Allow-Methods", allowedMethods)
+				h.Set("Access-Control-Allow-Headers", allowedHeaders)
+				if exposedHeaders != "" {
+					h.Set("Access-Control-Expose-Headers", exposedHeaders)
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
