@@ -30,6 +30,16 @@ func SecurityHeaders(cfgs ...SecurityConfig) Middleware {
 	if len(cfgs) > 0 {
 		cfg = cfgs[0]
 	}
+
+	// Pre-calculate HSTS header value to avoid string formatting and allocation on every request
+	var hstsValue string
+	if cfg.HSTSMaxAgeSeconds > 0 {
+		hstsValue = fmt.Sprintf("max-age=%d", cfg.HSTSMaxAgeSeconds)
+		if cfg.HSTSIncludeSubdomains {
+			hstsValue += "; includeSubDomains"
+		}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			h := w.Header()
@@ -55,12 +65,8 @@ func SecurityHeaders(cfgs ...SecurityConfig) Middleware {
 			}
 
 			// 2. HSTS (仅在 HTTPS 下生效)
-			if cfg.HSTSMaxAgeSeconds > 0 {
-				val := fmt.Sprintf("max-age=%d", cfg.HSTSMaxAgeSeconds)
-				if cfg.HSTSIncludeSubdomains {
-					val += "; includeSubDomains"
-				}
-				h.Set("Strict-Transport-Security", val)
+			if hstsValue != "" {
+				h.Set("Strict-Transport-Security", hstsValue)
 			}
 
 			// 3. CSP
