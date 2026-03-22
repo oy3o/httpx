@@ -17,3 +17,7 @@
 ## 2026-03-18 - [Cache CORS Preflight Headers]
 **Learning:** `strings.Join` inside middleware handler functions creates unnecessary memory allocations on every request. For static configuration like CORS `AllowedMethods` and `AllowedHeaders`, this work should be done once when the middleware is initialized.
 **Action:** Always pre-calculate static string concatenations or joins outside of HTTP handler closures.
+
+## 2026-03-22 - [Avoid Header.Set Allocations for Static Headers]
+**Learning:** `w.Header().Set("Content-Type", "...")` creates unnecessary allocations and CPU overhead by performing string manipulation and canonicalization on every request. Direct map assignment with a pre-allocated string slice `w.Header()["Content-Type"] = preAllocatedSlice` is significantly faster.
+**Action:** For frequently used static HTTP headers, avoid `w.Header().Set()` and pre-allocate string slices to assign directly to the header map using canonicalized keys.

@@ -151,7 +151,7 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	_, isSelfMarshaler := err.(json.Marshaler)
 
 	if !cfg.noEnvelope && !isSelfMarshaler {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header()["Content-Type"] = jsonContentType
 		pooledResp = errorRespPool.Get().(*Response[any])
 		pooledResp.Code = bizCode
 		pooledResp.Message = msg
@@ -161,7 +161,7 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	} else {
 		// NoEnvelope 模式下，ContentType 可能需要根据业务调整，但通常 JSON 居多
 		if w.Header().Get("Content-Type") == "" {
-			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.Header()["Content-Type"] = jsonContentType
 		}
 	}
 
