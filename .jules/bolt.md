@@ -25,3 +25,7 @@
 ## 2026-03-22 - [Avoid Header.Set Allocations for Static Headers]
 **Learning:** `w.Header().Set("Content-Type", "...")` creates unnecessary allocations and CPU overhead by performing string manipulation and canonicalization on every request. Direct map assignment with a pre-allocated string slice `w.Header()["Content-Type"] = preAllocatedSlice` is significantly faster.
 **Action:** For frequently used static HTTP headers, avoid `w.Header().Set()` and pre-allocate string slices to assign directly to the header map using canonicalized keys.
+
+## 2026-03-23 - [DANGER: Avoid Global Slice Mutation in Header Maps]
+**Learning:** While bypassing `w.Header().Set("Key", "Value")` via direct map assignment `w.Header()["Key"] = sharedSlice` saves allocations, it introduces a critical data race and state corruption vulnerability if `sharedSlice` is a globally shared or closure-captured slice (e.g., `var corsValStar = []string{"*"}`). `w.Header().Set()` mutates the underlying slice array in-place. If any downstream middleware or handler calls `w.Header().Set()` on that key, it permanently mutates the global slice for all future requests, creating massive security and logic flaws.
+**Action:** When bypassing `w.Header().Set()` to avoid `CanonicalMIMEHeaderKey` string formatting overhead, you MUST allocate a new slice *per request*: `w.Header()["Key"] = []string{value}`. This still saves CPU time and string allocation by skipping formatting while completely avoiding shared state mutations.
