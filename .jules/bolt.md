@@ -18,6 +18,10 @@
 **Learning:** `strings.Join` inside middleware handler functions creates unnecessary memory allocations on every request. For static configuration like CORS `AllowedMethods` and `AllowedHeaders`, this work should be done once when the middleware is initialized.
 **Action:** Always pre-calculate static string concatenations or joins outside of HTTP handler closures.
 
+## 2026-03-21 - [Bypass CanonicalMIMEHeaderKey Overhead in Static Headers]
+**Learning:** `w.Header().Set("Key", "Value")` incurs a hidden performance penalty because it calls `textproto.CanonicalMIMEHeaderKey` to format the key, and allocates a new `[]string{value}` every time. For static, frequently used HTTP headers (like security headers), this creates unnecessary allocations and CPU overhead on every request.
+**Action:** For static headers, pre-allocate the slice (e.g., `var val = []string{"1"}`) and bypass `.Set()` by assigning directly to the underlying map: `w.Header()["Canonical-Key"] = val`. Ensure the key string used for map access is already canonicalized.
+
 ## 2026-03-22 - [Avoid Header.Set Allocations for Static Headers]
 **Learning:** `w.Header().Set("Content-Type", "...")` creates unnecessary allocations and CPU overhead by performing string manipulation and canonicalization on every request. Direct map assignment with a pre-allocated string slice `w.Header()["Content-Type"] = preAllocatedSlice` is significantly faster.
 **Action:** For frequently used static HTTP headers, avoid `w.Header().Set()` and pre-allocate string slices to assign directly to the header map using canonicalized keys.
