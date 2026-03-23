@@ -11,6 +11,9 @@ import (
 	"github.com/bytedance/sonic"
 )
 
+// 优化: 预分配 JSON 的 Content-Type 切片，避免每次请求调用 w.Header().Set 产生的字符串分配和规范化开销
+var jsonContentType = []string{"application/json; charset=utf-8"}
+
 // GetTraceID 是一个依赖注入点。
 // 外部库（如 o11y）应该设置这个函数，以便 httpx 能获取到 TraceID。
 var GetTraceID func(ctx context.Context) string = nil
@@ -56,7 +59,7 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 		}
 
 		// JSON 响应
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header()["Content-Type"] = jsonContentType
 		w.WriteHeader(http.StatusOK)
 
 		if !cfg.noEnvelope {
