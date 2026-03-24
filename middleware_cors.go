@@ -63,10 +63,14 @@ func CORS(opts CORSOptions) Middleware {
 			}
 
 			h := w.Header()
+			// ⚡ Bolt: 使用直接 map 赋值代替 w.Header().Set()
+			// 分配新的 []string 以避免多个请求之间的数据竞争和共享状态污染，
+			// 但通过跳过 textproto.CanonicalMIMEHeaderKey 格式化调用，仍然能显著节省 CPU 和内存开销。
+
 			// 如果配置了 AllowCredentials，则必须回显具体的 Origin，不能是 "*"
 			if opts.AllowCredentials {
-				h.Set("Access-Control-Allow-Origin", origin)
-				h.Set("Access-Control-Allow-Credentials", "true")
+				h["Access-Control-Allow-Origin"] = []string{origin}
+				h["Access-Control-Allow-Credentials"] = []string{"true"}
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
 				// 为了简化，如果有 "*" 匹配，直接返回 "*"
@@ -78,15 +82,15 @@ func CORS(opts CORSOptions) Middleware {
 						break
 					}
 				}
-				h.Set("Access-Control-Allow-Origin", val)
+				h["Access-Control-Allow-Origin"] = []string{val}
 			}
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h.Set("Access-Control-Allow-Methods", allowedMethods)
-				h.Set("Access-Control-Allow-Headers", allowedHeaders)
+				h["Access-Control-Allow-Methods"] = []string{allowedMethods}
+				h["Access-Control-Allow-Headers"] = []string{allowedHeaders}
 				if exposedHeaders != "" {
-					h.Set("Access-Control-Expose-Headers", exposedHeaders)
+					h["Access-Control-Expose-Headers"] = []string{exposedHeaders}
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
