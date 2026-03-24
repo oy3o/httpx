@@ -135,8 +135,8 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	if GetTraceID != nil {
 		traceID = GetTraceID(r.Context())
 		if traceID != "" {
-			if w.Header().Get("X-Trace-ID") == "" {
-				w.Header().Set("X-Trace-ID", traceID)
+			if w.Header().Get("X-Trace-Id") == "" {
+				w.Header()["X-Trace-Id"] = []string{traceID}
 			}
 		}
 	}
