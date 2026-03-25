@@ -40,6 +40,13 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 	// 计算 No-Vary-Search 头 (一次性计算)
 	nvHeader := buildNoVarySearch[Req](cfg)
 
+	// ⚡ Bolt: 对于静态 Header (一次性计算的值)，可以在闭包外预分配切片
+	// 避免在每次请求时执行 w.Header()["No-Vary-Search"] = []string{nvHeader} 产生的分配
+	var nvHeaderSlice []string
+	if nvHeader != "" {
+		nvHeaderSlice = []string{nvHeader}
+	}
+
 	// 优化：针对泛型 Res 的复用池，避免每次请求装箱 Response[Res] 时分配内存
 	respPool := sync.Pool{
 		New: func() any {
@@ -49,8 +56,8 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 设置 No-Vary-Search 头
-		if nvHeader != "" {
-			w.Header()["No-Vary-Search"] = []string{nvHeader}
+		if nvHeaderSlice != nil {
+			w.Header()["No-Vary-Search"] = nvHeaderSlice
 		}
 
 		res, traceID, ok := prepare(w, r, cfg, fn)
@@ -119,9 +126,15 @@ func NewStreamHandler[Req any, Res Streamable](fn HandlerFunc[Req, Res], opts ..
 
 	nvHeader := buildNoVarySearch[Req](cfg)
 
+	// ⚡ Bolt: 预分配切片避免每次请求分配
+	var nvHeaderSlice []string
+	if nvHeader != "" {
+		nvHeaderSlice = []string{nvHeader}
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		if nvHeader != "" {
-			w.Header()["No-Vary-Search"] = []string{nvHeader}
+		if nvHeaderSlice != nil {
+			w.Header()["No-Vary-Search"] = nvHeaderSlice
 		}
 
 		res, _, ok := prepare(w, r, cfg, fn)
