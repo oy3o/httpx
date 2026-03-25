@@ -26,7 +26,7 @@ func NewResponder[Req any, Res Responder](fn HandlerFunc[Req, Res], opts ...Opti
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if nvHeader != "" {
-			w.Header().Set("No-Vary-Search", nvHeader)
+			w.Header()["No-Vary-Search"] = []string{nvHeader}
 		}
 
 		// 复用通用的绑定、验证和执行逻辑

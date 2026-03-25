@@ -50,7 +50,7 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 设置 No-Vary-Search 头
 		if nvHeader != "" {
-			w.Header().Set("No-Vary-Search", nvHeader)
+			w.Header()["No-Vary-Search"] = []string{nvHeader}
 		}
 
 		res, traceID, ok := prepare(w, r, cfg, fn)
@@ -121,7 +121,7 @@ func NewStreamHandler[Req any, Res Streamable](fn HandlerFunc[Req, Res], opts ..
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		if nvHeader != "" {
-			w.Header().Set("No-Vary-Search", nvHeader)
+			w.Header()["No-Vary-Search"] = []string{nvHeader}
 		}
 
 		res, _, ok := prepare(w, r, cfg, fn)
@@ -187,7 +187,7 @@ func prepare[Req any, Res any](w http.ResponseWriter, r *http.Request, cfg *conf
 	if GetTraceID != nil {
 		traceID = GetTraceID(ctx)
 		if traceID != "" {
-			w.Header().Set("X-Trace-ID", traceID)
+			w.Header()["X-Trace-Id"] = []string{traceID}
 		}
 	}
 
