@@ -68,9 +68,11 @@ func CORS(opts CORSOptions) Middleware {
 			// 但通过跳过 textproto.CanonicalMIMEHeaderKey 格式化调用，仍然能显著节省 CPU 和内存开销。
 
 			// 如果配置了 AllowCredentials，则必须回显具体的 Origin，不能是 "*"
+			varyByOrigin := false
 			if opts.AllowCredentials {
 				h["Access-Control-Allow-Origin"] = []string{origin}
 				h["Access-Control-Allow-Credentials"] = []string{"true"}
+				varyByOrigin = true
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
 				// 为了简化，如果有 "*" 匹配，直接返回 "*"
@@ -83,6 +85,11 @@ func CORS(opts CORSOptions) Middleware {
 					}
 				}
 				h["Access-Control-Allow-Origin"] = []string{val}
+				varyByOrigin = val != "*"
+			}
+
+			if varyByOrigin {
+				h["Vary"] = append(h["Vary"], "Origin")
 			}
 
 			// 处理 Preflight OPTIONS 请求

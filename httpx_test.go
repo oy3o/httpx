@@ -277,30 +277,26 @@ func TestNoVarySearch(t *testing.T) {
 	handlerFunc := func(ctx context.Context, req *TestReqQuery) (*TestRes, error) {
 		return &TestRes{ID: "ok"}, nil
 	}
-	handlerFuncEmpty := func(ctx context.Context, req *TestReqEmpty) (*TestRes, error) {
-		return &TestRes{ID: "ok"}, nil
-	}
 
-	t.Run("Default_AutoDetect", func(t *testing.T) {
+	t.Run("Default_NoHeader", func(t *testing.T) {
 		h := NewHandler(handlerFunc)
 		r := httptest.NewRequest("GET", "/", nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)
-		// 期望：params, except=("q" "sort" "page") 顺序不保证，但 keys 应该都有
+		assert.Empty(t, w.Header().Get("No-Vary-Search"))
+	})
+
+	t.Run("Explicit_Enabled", func(t *testing.T) {
+		h := NewHandler(handlerFunc, WithNoVarySearch("q", "sort", "page"))
+		r := httptest.NewRequest("GET", "/", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
 		header := w.Header().Get("No-Vary-Search")
 		assert.Contains(t, header, "params")
 		assert.Contains(t, header, "except=")
 		assert.Contains(t, header, "\"q\"")
 		assert.Contains(t, header, "\"sort\"")
 		assert.Contains(t, header, "\"page\"")
-	})
-
-	t.Run("Default_EmptyStruct", func(t *testing.T) {
-		h := NewHandler(handlerFuncEmpty)
-		r := httptest.NewRequest("GET", "/", nil)
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, r)
-		assert.Equal(t, "key-order, params", w.Header().Get("No-Vary-Search"))
 	})
 
 	t.Run("Manual_Override", func(t *testing.T) {
@@ -319,18 +315,10 @@ func TestNoVarySearch(t *testing.T) {
 		assert.Equal(t, "key-order, params", w.Header().Get("No-Vary-Search"))
 	})
 
-	t.Run("Disabled", func(t *testing.T) {
-		h := NewHandler(handlerFunc, DisableNoVarySearch())
-		r := httptest.NewRequest("GET", "/", nil)
-		w := httptest.NewRecorder()
-		h.ServeHTTP(w, r)
-		assert.Empty(t, w.Header().Get("No-Vary-Search"))
-	})
-
-	t.Run("NewResponder_Integration", func(t *testing.T) {
+	t.Run("Responder_Integration", func(t *testing.T) {
 		h := NewResponder(func(ctx context.Context, req *TestReqQuery) (Responder, error) {
 			return NoContent{Status: 204}, nil
-		})
+		}, WithNoVarySearch("q"))
 		r := httptest.NewRequest("GET", "/", nil)
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, r)

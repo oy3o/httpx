@@ -24,6 +24,97 @@ func TestDefaultCORS(t *testing.T) {
 
 	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
 	assert.Equal(t, "", w.Header().Get("Access-Control-Allow-Credentials"))
+	assert.NotContains(t, w.Header().Values("Vary"), "Origin")
+}
+
+func TestCORS_Vary(t *testing.T) {
+	t.Run("Credentialed Dynamic Origin", func(t *testing.T) {
+		mw := CORS(CORSOptions{
+			AllowedOrigins:   []string{"http://example.com"},
+			AllowCredentials: true,
+		})
+		handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(200)
+		}))
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set("Origin", "http://example.com")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		assert.Equal(t, "http://example.com", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Contains(t, w.Header().Values("Vary"), "Origin")
+	})
+
+	t.Run("Non-Credentialed Dynamic Origin", func(t *testing.T) {
+		mw := CORS(CORSOptions{
+			AllowedOrigins: []string{"http://example.com", "http://other.com"},
+		})
+		handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(200)
+		}))
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set("Origin", "http://example.com")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		assert.Equal(t, "http://example.com", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Contains(t, w.Header().Values("Vary"), "Origin")
+	})
+
+	t.Run("Wildcard Origin", func(t *testing.T) {
+		mw := CORS(CORSOptions{
+			AllowedOrigins: []string{"*"},
+		})
+		handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(200)
+		}))
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set("Origin", "http://example.com")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.NotContains(t, w.Header().Values("Vary"), "Origin")
+	})
+
+	t.Run("Preflight Options Dynamic Origin", func(t *testing.T) {
+		mw := CORS(CORSOptions{
+			AllowedOrigins: []string{"http://example.com"},
+		})
+		handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(200)
+		}))
+
+		r := httptest.NewRequest("OPTIONS", "/", nil)
+		r.Header.Set("Origin", "http://example.com")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusNoContent, w.Code)
+		assert.Contains(t, w.Header().Values("Vary"), "Origin")
+	})
+
+	t.Run("Cacheable Response with Dynamic Origin", func(t *testing.T) {
+		mw := CORS(CORSOptions{
+			AllowedOrigins: []string{"http://example.com"},
+		})
+		handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "public, max-age=120")
+			w.WriteHeader(200)
+		}))
+
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set("Origin", "http://example.com")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+
+		assert.Equal(t, "http://example.com", w.Header().Get("Access-Control-Allow-Origin"))
+		assert.Contains(t, w.Header().Values("Vary"), "Origin")
+		assert.Equal(t, "public, max-age=120", w.Header().Get("Cache-Control"))
+	})
 }
 
 func TestCORS_Detailed(t *testing.T) {

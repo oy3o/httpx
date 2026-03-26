@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"reflect"
 	"strings"
 	"sync"
 
@@ -208,26 +207,11 @@ func prepare[Req any, Res any](w http.ResponseWriter, r *http.Request, cfg *conf
 }
 
 func buildNoVarySearch[Req any](cfg *config) string {
-	if cfg.disableNoVarySearch {
+	if cfg.noVarySearch == nil {
 		return ""
 	}
 
-	var keys []string
-	if cfg.noVarySearch != nil {
-		// 手动指定
-		keys = cfg.noVarySearch
-	} else {
-		// 自动推断
-		t := reflect.TypeOf((*Req)(nil))
-		if t.Kind() == reflect.Ptr {
-			t = t.Elem()
-		}
-		// 只有 struct 才有元数据
-		if t.Kind() == reflect.Struct {
-			meta := getStructMeta(t)
-			keys = meta.formKeys
-		}
-	}
+	keys := cfg.noVarySearch
 
 	if len(keys) == 0 {
 		return "key-order, params"

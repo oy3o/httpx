@@ -7,14 +7,13 @@ import (
 )
 
 type config struct {
-	noEnvelope          bool
-	validator           *validator.Validate
-	binders             []Binder
-	errorFunc           ErrorFunc
-	errorHook           func(ctx context.Context, err error)
-	maxBodySize         int64
-	noVarySearch        []string
-	disableNoVarySearch bool
+	noEnvelope  bool
+	validator   *validator.Validate
+	binders     []Binder
+	errorFunc   ErrorFunc
+	errorHook   func(ctx context.Context, err error)
+	maxBodySize int64
+	noVarySearch []string
 }
 
 type Option func(*config)
@@ -105,10 +104,11 @@ func WithMaxBodySize(maxBytes int64) Option {
 	}
 }
 
-// WithNoVarySearch 手动指定 No-Vary-Search 头部允许的参数列表。
-// 如果不指定 (默认)，将自动使用 Req 结构体中定义的参数作为 allowlist (No-Vary-Search: params, except=(...))。
+// WithNoVarySearch 手动指定 No-Vary-Search 头部应当忽略的参数列表。
+// 默认不发送此头部，以防止在存在身份敏感查询参数（如 token）时发生缓存混淆。
+// 只有在明确知道哪些参数对响应内容无影响时才应开启。
 // 传入的 keys 将被视为允许变化的参数 (except 列表)。
-// 如果传入空且未禁用，将生成 "No-Vary-Search: params" (忽略所有参数)。
+// 如果传入空 slice，将生成 "No-Vary-Search: key-order, params" (忽略所有参数)。
 func WithNoVarySearch(keys ...string) Option {
 	return func(c *config) {
 		c.noVarySearch = keys
@@ -116,12 +116,5 @@ func WithNoVarySearch(keys ...string) Option {
 		if c.noVarySearch == nil {
 			c.noVarySearch = []string{}
 		}
-	}
-}
-
-// DisableNoVarySearch 禁用 No-Vary-Search 头部的自动生成。
-func DisableNoVarySearch() Option {
-	return func(c *config) {
-		c.disableNoVarySearch = true
 	}
 }
