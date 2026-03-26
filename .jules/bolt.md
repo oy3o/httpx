@@ -33,3 +33,12 @@
 ## 2025-02-17 - [Bypass CanonicalMIMEHeaderKey Overhead for X-Trace-ID and No-Vary-Search]
 **Learning:** `w.Header().Set("X-Trace-ID", traceID)` and `w.Header().Set("No-Vary-Search", nvHeader)` incur hidden performance penalties because they call `textproto.CanonicalMIMEHeaderKey` to format the key, and allocate a new `[]string{value}` every time. Note that "X-Trace-ID" is not canonicalized (the canonicalized version is "X-Trace-Id"), so `Set` always creates a new string allocation.
 **Action:** Use direct map assignment `w.Header()["X-Trace-Id"] = []string{traceID}` and `w.Header()["No-Vary-Search"] = []string{nvHeader}` to avoid `CanonicalMIMEHeaderKey` string formatting overhead and memory allocations. Ensure the key string used for map access is already canonicalized (e.g., "X-Trace-Id", not "X-Trace-ID").
+
+## 2026-03-24 - [Avoid Slice Allocation for Static Headers]
+**Learning:** Pre-allocating `[]string{value}` for static headers like `No-Vary-Search` outside the handler closure, and checking header existence with `len(w.Header()["Key"]) == 0` instead of `.Get()` completely eliminates per-request heap allocations and string formatting overhead for those headers.
+**Action:** Always pre-calculate static header slices outside of the HTTP handler closure and assign them directly to the map.
+
+## 2026-03-24 - [Avoid append on sonic.Marshal data]
+**Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
+')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
+**Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.

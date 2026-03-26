@@ -24,9 +24,15 @@ func NewResponder[Req any, Res Responder](fn HandlerFunc[Req, Res], opts ...Opti
 
 	nvHeader := buildNoVarySearch[Req](cfg)
 
+	// ⚡ Bolt: 对于静态 Header，预分配切片避免请求时分配
+	var nvHeaderSlice []string
+	if nvHeader != "" {
+		nvHeaderSlice = []string{nvHeader}
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
-		if nvHeader != "" {
-			w.Header()["No-Vary-Search"] = []string{nvHeader}
+		if nvHeaderSlice != nil {
+			w.Header()["No-Vary-Search"] = nvHeaderSlice
 		}
 
 		// 复用通用的绑定、验证和执行逻辑

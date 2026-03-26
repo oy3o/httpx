@@ -135,7 +135,8 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	if GetTraceID != nil {
 		traceID = GetTraceID(r.Context())
 		if traceID != "" {
-			if w.Header().Get("X-Trace-Id") == "" {
+			// ⚡ Bolt: 避免 CanonicalMIMEHeaderKey 字符串格式化开销
+			if len(w.Header()["X-Trace-Id"]) == 0 {
 				w.Header()["X-Trace-Id"] = []string{traceID}
 			}
 		}
@@ -160,7 +161,8 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 		resp = pooledResp
 	} else {
 		// NoEnvelope 模式下，ContentType 可能需要根据业务调整，但通常 JSON 居多
-		if w.Header().Get("Content-Type") == "" {
+		// ⚡ Bolt: 避免 CanonicalMIMEHeaderKey 字符串格式化开销
+		if len(w.Header()["Content-Type"]) == 0 {
 			w.Header()["Content-Type"] = jsonContentType
 		}
 	}
