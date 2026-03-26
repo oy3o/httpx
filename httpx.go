@@ -13,6 +13,9 @@ import (
 // 优化: 预分配 JSON 的 Content-Type 切片，避免每次请求调用 w.Header().Set 产生的字符串分配和规范化开销
 var jsonContentType = []string{"application/json; charset=utf-8"}
 
+// ⚡ Bolt: 避免 w.Write([]byte("\n")) 在每次请求时产生的 1 Byte 堆分配
+var nlBytes = []byte("\n")
+
 // GetTraceID 是一个依赖注入点。
 // 外部库（如 o11y）应该设置这个函数，以便 httpx 能获取到 TraceID。
 var GetTraceID func(ctx context.Context) string = nil
@@ -80,7 +83,7 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 			if err == nil {
 				_, err = w.Write(data)
 				if err == nil {
-					_, err = w.Write([]byte("\n"))
+					_, err = w.Write(nlBytes)
 				}
 			}
 			if err != nil && cfg.errorHook != nil {
@@ -99,7 +102,7 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 		if err == nil {
 			_, err = w.Write(data)
 			if err == nil {
-				_, err = w.Write([]byte("\n"))
+				_, err = w.Write(nlBytes)
 			}
 		}
 		if err != nil && cfg.errorHook != nil {
