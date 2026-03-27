@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-27 - [Avoid Inline String to Byte Slice Conversions in Hot Paths]
+**Learning:** Avoid inline string to byte slice conversions in hot paths (like `w.Write([]byte("\n"))`) as it forces heap allocations. When passing a slice created inline to a function that takes an interface (like `io.Writer`), the Go compiler cannot easily prove it won't escape, leading to an allocation due to interface boxing on every request.
+**Action:** Pre-allocate package-level byte slice variables (e.g., `var nlBytes = []byte("\n")`) and use them in `w.Write` to eliminate this recurring memory allocation overhead.
