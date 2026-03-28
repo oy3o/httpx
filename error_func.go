@@ -128,7 +128,7 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	}
 
 	// 7. 写入响应头
-	w.WriteHeader(httpCode)
+	// w.WriteHeader(httpCode) moved to step 9
 
 	// 自动注入 TraceID
 	var traceID string
@@ -167,12 +167,13 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 		}
 	}
 
-	// 9. 写入 Body
+	// 9. 写入响应头和 Body
+	w.WriteHeader(httpCode)
 	data, err := sonic.ConfigDefault.Marshal(resp)
 	if err == nil {
 		_, err = w.Write(data)
 		if err == nil {
-			_, err = w.Write([]byte("\n"))
+			_, err = w.Write(nlBytes)
 		}
 	}
 	if err != nil {
