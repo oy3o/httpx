@@ -68,7 +68,8 @@ type RawBytes struct {
 
 func (rb RawBytes) WriteResponse(w http.ResponseWriter, r *http.Request) {
 	if rb.ContentType != "" {
-		w.Header().Set("Content-Type", rb.ContentType)
+		// ⚡ Bolt: 避免 CanonicalMIMEHeaderKey 字符串格式化和 Header.Set 产生的内存分配
+		w.Header()["Content-Type"] = []string{rb.ContentType}
 	}
 	w.WriteHeader(rb.Status)
 	_, _ = w.Write(rb.Data)
