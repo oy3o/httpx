@@ -62,13 +62,13 @@ func WithStatus(code int) ErrorOption {
 // Error 负责将 error 转换为 HTTP 响应并写入 ResponseWriter。
 func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOption) {
 	// 1. 初始化默认配置
-	cfg := &errorConfig{
+	cfg := errorConfig{
 		hook: ErrorHook,
 	}
 
 	// 2. 应用选项
 	for _, opt := range opts {
-		opt(cfg)
+		opt(&cfg)
 	}
 
 	// 3. 执行 Hook (日志记录)
