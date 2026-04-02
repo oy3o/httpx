@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-24 - [Avoid Header.Get overhead in hot paths]
+**Learning:** In Go, calling `r.Header.Get("Content-Type")` incurs implicit CPU overhead due to underlying string operations and potential formatting via `textproto.CanonicalMIMEHeaderKey`. This overhead becomes noticeable in very hot paths like request routing or content-type binding. While bypassing this by using direct map access `vals := r.Header["Content-Type"]` is faster, replacing `strings.HasPrefix` with manual string slicing and length checks degrades readability and safety with no meaningful additional performance gain.
+**Action:** When checking header presence or matching prefixes in hot paths, use direct map access (e.g., `vals := r.Header["Content-Type"]`) instead of `r.Header.Get()`, but ALWAYS continue using idiomatic string functions like `strings.HasPrefix` to maintain readability and safety instead of hardcoding slice bounds.

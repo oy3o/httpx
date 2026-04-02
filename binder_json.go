@@ -18,7 +18,13 @@ type JsonBinder struct {
 func (b *JsonBinder) Name() string     { return "json" }
 func (b *JsonBinder) Type() BinderType { return BinderBody }
 func (b *JsonBinder) Match(r *http.Request) bool {
-	return strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
+	vals := r.Header["Content-Type"]
+	if len(vals) == 0 {
+		return false
+	}
+	// ⚡ Bolt: 避免 r.Header.Get() 的隐式开销，使用直接 map 访问
+	// 使用 strings.HasPrefix 保持代码可读性，同时性能依然极高
+	return strings.HasPrefix(vals[0], "application/json")
 }
 
 func (b *JsonBinder) Bind(r *http.Request, v any) error {
