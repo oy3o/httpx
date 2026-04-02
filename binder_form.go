@@ -15,7 +15,13 @@ type FormBinder struct {
 func (b *FormBinder) Name() string     { return "form" }
 func (b *FormBinder) Type() BinderType { return BinderBody }
 func (b *FormBinder) Match(r *http.Request) bool {
-	ct := r.Header.Get("Content-Type")
+	vals := r.Header["Content-Type"]
+	if len(vals) == 0 {
+		return false
+	}
+	// ⚡ Bolt: 避免 r.Header.Get() 的隐式开销，使用直接 map 访问
+	// 使用 strings.HasPrefix 保持代码可读性，同时性能依然极高
+	ct := vals[0]
 	return strings.HasPrefix(ct, "application/x-www-form-urlencoded") ||
 		strings.HasPrefix(ct, "multipart/form-data")
 }
