@@ -104,18 +104,21 @@ func AuthChain(strategies ...AuthStrategy) AuthStrategy {
 // 当策略链彻底失败（即客户端完全未提供凭证）时，此装饰器将错误转换为
 // 带有 WWW-Authenticate 的 401 错误。
 func WithAuthChallenge(strategy AuthStrategy, headerKey, headerVal string) AuthStrategy {
+	if headerKey == "" {
+		headerKey = "WWW-Authenticate"
+	}
+	if headerVal == "" {
+		headerVal = "Bearer realm=\"oidc\", error=\"invalid_token\""
+	}
+	canonicalKey := http.CanonicalHeaderKey(headerKey)
+
 	return func(w http.ResponseWriter, r *http.Request) (any, error) {
 		identity, err := strategy(w, r)
 		if err != nil {
 			// 如果是“未提供凭证”，则告诉客户端应该提供什么
 			if w != nil && errors.Is(err, ErrNoCredentials) {
-				if headerKey == "" {
-					headerKey = "WWW-Authenticate"
-				}
-				if headerVal == "" {
-					headerVal = "Bearer realm=\"oidc\", error=\"invalid_token\""
-				}
-				w.Header().Set(headerKey, headerVal)
+				// ⚡ Bolt: 使用直接 map 赋值代替 w.Header().Set()
+				w.Header()[canonicalKey] = []string{headerVal}
 
 				return nil, &HttpError{
 					HttpCode: http.StatusUnauthorized,
