@@ -42,3 +42,6 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+## 2026-04-04 - [Pre-calculate Static Headers for Auth Challenge]
+**Learning:** Initializing default string values (e.g. `headerKey == ""`) and calculating canonical headers (e.g., `http.CanonicalHeaderKey(headerKey)`) inside a returned middleware handler closure executes on every matching request. In addition to wasting CPU cycles and memory on repetitive format parsing, if default values update captured closure variables, it introduces a concurrency hazard (data race) on parallel requests.
+**Action:** Always pre-calculate and sanitize static configuration strings outside of HTTP handler closures. When bypassing `w.Header().Set()`, compute the canonicalized key once at initialization, and assign values directly via map access: `w.Header()[canonicalKey] = []string{val}`.
