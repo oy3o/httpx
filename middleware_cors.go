@@ -39,6 +39,20 @@ func CORS(opts CORSOptions) Middleware {
 		exposedHeaders = strings.Join(opts.ExposedHeaders, ", ")
 	}
 
+	// ⚡ Bolt: 预分配静态 CORS Header 的 slice 以避免每次请求在 `h["..."] = []string{...}` 处动态分配。
+	// 虽然跳过了 CanonicalMIMEHeaderKey 格式化调用减少了 CPU/内存开销，但切片字面量本身还是会导致 GC 压力。
+	// 对于静态内容，预计算并在闭包外缓存可以彻底消除这些分配。
+	// 注意：这些切片只用于赋值给 header 映射，下游不应当修改它们，因此重用是安全的。
+	allowedMethodsSlice := []string{allowedMethods}
+	allowedHeadersSlice := []string{allowedHeaders}
+	var exposedHeadersSlice []string
+	if exposedHeaders != "" {
+		exposedHeadersSlice = []string{exposedHeaders}
+	}
+	varyOriginSlice := []string{"Origin"}
+	allowCredentialsTrueSlice := []string{"true"}
+	allowOriginStarSlice := []string{"*"}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
@@ -71,7 +85,7 @@ func CORS(opts CORSOptions) Middleware {
 			varyByOrigin := false
 			if opts.AllowCredentials {
 				h["Access-Control-Allow-Origin"] = []string{origin}
-				h["Access-Control-Allow-Credentials"] = []string{"true"}
+				h["Access-Control-Allow-Credentials"] = allowCredentialsTrueSlice
 				varyByOrigin = true
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
@@ -84,20 +98,28 @@ func CORS(opts CORSOptions) Middleware {
 						break
 					}
 				}
-				h["Access-Control-Allow-Origin"] = []string{val}
+				if val == "*" {
+					h["Access-Control-Allow-Origin"] = allowOriginStarSlice
+				} else {
+					h["Access-Control-Allow-Origin"] = []string{val}
+				}
 				varyByOrigin = val != "*"
 			}
 
 			if varyByOrigin {
-				h["Vary"] = append(h["Vary"], "Origin")
+				if len(h["Vary"]) == 0 {
+					h["Vary"] = varyOriginSlice
+				} else {
+					h["Vary"] = append(h["Vary"], "Origin")
+				}
 			}
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h["Access-Control-Allow-Methods"] = []string{allowedMethods}
-				h["Access-Control-Allow-Headers"] = []string{allowedHeaders}
-				if exposedHeaders != "" {
-					h["Access-Control-Expose-Headers"] = []string{exposedHeaders}
+				h["Access-Control-Allow-Methods"] = allowedMethodsSlice
+				h["Access-Control-Allow-Headers"] = allowedHeadersSlice
+				if exposedHeadersSlice != nil {
+					h["Access-Control-Expose-Headers"] = exposedHeadersSlice
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
