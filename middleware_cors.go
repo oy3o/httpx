@@ -41,12 +41,13 @@ func CORS(opts CORSOptions) Middleware {
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			origin := r.Header.Get("Origin")
-			if origin == "" {
+			vals := r.Header["Origin"]
+			if len(vals) == 0 || vals[0] == "" {
 				// 非跨域请求，直接跳过
 				next.ServeHTTP(w, r)
 				return
 			}
+			origin := vals[0]
 
 			// Origin 匹配逻辑
 			allowed := false

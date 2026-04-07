@@ -139,7 +139,11 @@ func WithAuthChallenge(strategy AuthStrategy, headerKey, headerVal string) AuthS
 func FromHeader(scheme string, validator func(context.Context, string) (any, error)) AuthStrategy {
 	prefix := scheme + " "
 	return func(w http.ResponseWriter, r *http.Request) (any, error) {
-		auth := r.Header.Get("Authorization")
+		vals := r.Header["Authorization"]
+		if len(vals) == 0 {
+			return nil, ErrNoCredentials
+		}
+		auth := vals[0]
 		if len(auth) < len(prefix) || !strings.EqualFold(auth[:len(prefix)], prefix) {
 			return nil, ErrNoCredentials
 		}
