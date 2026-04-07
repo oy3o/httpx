@@ -18,7 +18,11 @@ type JsonBinder struct {
 func (b *JsonBinder) Name() string     { return "json" }
 func (b *JsonBinder) Type() BinderType { return BinderBody }
 func (b *JsonBinder) Match(r *http.Request) bool {
-	return strings.HasPrefix(r.Header.Get("Content-Type"), "application/json")
+	vals := r.Header["Content-Type"]
+	if len(vals) == 0 {
+		return false
+	}
+	return strings.HasPrefix(vals[0], "application/json")
 }
 
 func (b *JsonBinder) Bind(r *http.Request, v any) error {

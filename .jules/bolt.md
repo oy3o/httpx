@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-04-07 - [Bypass CanonicalMIMEHeaderKey Overhead in standard Request Headers]
+**Learning:** `r.Header.Get("Key")` incurs a hidden performance penalty because it calls `textproto.CanonicalMIMEHeaderKey` to format the key, adding CPU time and overhead on every request even for correctly formatted standard headers like "Content-Type", "Authorization" or "X-Forwarded-For".
+**Action:** Replace `r.Header.Get("...")` with direct map lookup `vals := r.Header["..."]; if len(vals) > 0` in key hot paths for standard headers to avoid the `CanonicalMIMEHeaderKey` string formatting overhead while maintaining correctness. Ensure the key string used for map access is already canonicalized.

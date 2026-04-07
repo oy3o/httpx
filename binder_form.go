@@ -15,7 +15,11 @@ type FormBinder struct {
 func (b *FormBinder) Name() string     { return "form" }
 func (b *FormBinder) Type() BinderType { return BinderBody }
 func (b *FormBinder) Match(r *http.Request) bool {
-	ct := r.Header.Get("Content-Type")
+	vals := r.Header["Content-Type"]
+	if len(vals) == 0 {
+		return false
+	}
+	ct := vals[0]
 	return strings.HasPrefix(ct, "application/x-www-form-urlencoded") ||
 		strings.HasPrefix(ct, "multipart/form-data")
 }

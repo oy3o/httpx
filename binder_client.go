@@ -15,7 +15,11 @@ func (b *ClientAuthBinder) Type() BinderType { return BinderMeta } // 属于元�
 
 func (b *ClientAuthBinder) Match(r *http.Request) bool {
 	// 快速检查 Header 是否存在，避免无意义的解析
-	auth := r.Header.Get("Authorization")
+	vals := r.Header["Authorization"]
+	if len(vals) == 0 {
+		return false
+	}
+	auth := vals[0]
 	return len(auth) >= 6 && strings.EqualFold(auth[:6], "Basic ")
 }
 

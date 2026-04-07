@@ -48,7 +48,8 @@ func NewClientIPMiddleware(trustedProxiesCIDR []string) func(http.Handler) http.
 
 			if isTrusted {
 				// 1. Check X-Forwarded-For
-				if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+				if vals := r.Header["X-Forwarded-For"]; len(vals) > 0 && vals[0] != "" {
+					xff := vals[0]
 					// XFF: client, proxy1, proxy2
 					// We trust the chain provided by our trusted proxy.
 					// Real client is usually the first one.
@@ -61,8 +62,8 @@ func NewClientIPMiddleware(trustedProxiesCIDR []string) func(http.Handler) http.
 
 				// 2. Check X-Real-IP
 				if ip == "" {
-					if xri := r.Header.Get("X-Real-IP"); xri != "" {
-						ip = strings.TrimSpace(xri)
+					if vals := r.Header["X-Real-Ip"]; len(vals) > 0 && vals[0] != "" {
+						ip = strings.TrimSpace(vals[0])
 					}
 				}
 			}
