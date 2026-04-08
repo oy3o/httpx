@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-24 - [Avoid Slice Allocation for Static Headers via Pre-allocation]
+**Learning:** Even when skipping `strings.Join` inside an HTTP handler closure, dynamically creating a string slice for map assignment like `h["Access-Control-Allow-Methods"] = []string{allowedMethods}` still forces a slice heap allocation (approx 16 bytes) on every request.
+**Action:** For completely static headers, pre-allocate the slice itself (e.g., `allowedMethodsSlice := []string{allowedMethods}`) outside the closure and assign the slice directly. This completely eliminates per-request allocations for those headers.

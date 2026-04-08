@@ -32,11 +32,12 @@ func DefaultCORS() Middleware {
 // CORS 跨域资源共享中间件。
 func CORS(opts CORSOptions) Middleware {
 	// Pre-calculate allowed methods and headers to avoid allocation on every preflight request
-	allowedMethods := strings.Join(opts.AllowedMethods, ", ")
-	allowedHeaders := strings.Join(opts.AllowedHeaders, ", ")
-	var exposedHeaders string
+	// ⚡ Bolt: 预分配切片避免在处理 OPTIONS 请求时每次分配新的 []string
+	allowedMethodsSlice := []string{strings.Join(opts.AllowedMethods, ", ")}
+	allowedHeadersSlice := []string{strings.Join(opts.AllowedHeaders, ", ")}
+	var exposedHeadersSlice []string
 	if len(opts.ExposedHeaders) > 0 {
-		exposedHeaders = strings.Join(opts.ExposedHeaders, ", ")
+		exposedHeadersSlice = []string{strings.Join(opts.ExposedHeaders, ", ")}
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -94,10 +95,11 @@ func CORS(opts CORSOptions) Middleware {
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h["Access-Control-Allow-Methods"] = []string{allowedMethods}
-				h["Access-Control-Allow-Headers"] = []string{allowedHeaders}
-				if exposedHeaders != "" {
-					h["Access-Control-Expose-Headers"] = []string{exposedHeaders}
+				// ⚡ Bolt: 使用直接 map 赋值和预分配切片避免内存分配
+				h["Access-Control-Allow-Methods"] = allowedMethodsSlice
+				h["Access-Control-Allow-Headers"] = allowedHeadersSlice
+				if exposedHeadersSlice != nil {
+					h["Access-Control-Expose-Headers"] = exposedHeadersSlice
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
