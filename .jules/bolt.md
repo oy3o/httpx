@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-04-12 - [Safety of Pre-allocated Slices for Headers]
+**Learning:** While mutating globally shared header slices using `.Set()` creates a critical data race, sharing statically pre-allocated slices (e.g., `varyOriginSlice := []string{"Origin"}`) via direct map assignment (`h["Vary"] = varyOriginSlice`) is completely safe as long as the slice's capacity equals its length (`cap == len`, which is true for slices created via literals). If a downstream middleware later calls `.Add("Vary", "Accept")`, `append` will determine there is no capacity left and allocate a new backing array, leaving the shared static slice unmodified.
+**Action:** When pre-allocating static slices for HTTP headers to avoid allocation and canonicalization overhead, ensure `cap == len` (e.g., use slice literals). This safely allows sharing the slice across requests without fear of downstream `.Add` mutations corrupting the shared array.

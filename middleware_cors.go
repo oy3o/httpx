@@ -32,12 +32,24 @@ func DefaultCORS() Middleware {
 // CORS 跨域资源共享中间件。
 func CORS(opts CORSOptions) Middleware {
 	// Pre-calculate allowed methods and headers to avoid allocation on every preflight request
-	allowedMethods := strings.Join(opts.AllowedMethods, ", ")
-	allowedHeaders := strings.Join(opts.AllowedHeaders, ", ")
-	var exposedHeaders string
-	if len(opts.ExposedHeaders) > 0 {
-		exposedHeaders = strings.Join(opts.ExposedHeaders, ", ")
+	var allowedMethodsSlice []string
+	if len(opts.AllowedMethods) > 0 {
+		allowedMethodsSlice = []string{strings.Join(opts.AllowedMethods, ", ")}
 	}
+
+	var allowedHeadersSlice []string
+	if len(opts.AllowedHeaders) > 0 {
+		allowedHeadersSlice = []string{strings.Join(opts.AllowedHeaders, ", ")}
+	}
+
+	var exposedHeadersSlice []string
+	if len(opts.ExposedHeaders) > 0 {
+		exposedHeadersSlice = []string{strings.Join(opts.ExposedHeaders, ", ")}
+	}
+
+	allowCredentialsSlice := []string{"true"}
+	allowOriginStarSlice := []string{"*"}
+	varyOriginSlice := []string{"Origin"}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -64,14 +76,14 @@ func CORS(opts CORSOptions) Middleware {
 
 			h := w.Header()
 			// ⚡ Bolt: 使用直接 map 赋值代替 w.Header().Set()
-			// 分配新的 []string 以避免多个请求之间的数据竞争和共享状态污染，
-			// 但通过跳过 textproto.CanonicalMIMEHeaderKey 格式化调用，仍然能显著节省 CPU 和内存开销。
+			// 通过预分配静态切片，避免了每次请求的 []string 分配。
+			// 静态切片在 cap == len 的情况下，是安全的，因为下游调用 Add 时 append 会分配新数组。
 
 			// 如果配置了 AllowCredentials，则必须回显具体的 Origin，不能是 "*"
 			varyByOrigin := false
 			if opts.AllowCredentials {
 				h["Access-Control-Allow-Origin"] = []string{origin}
-				h["Access-Control-Allow-Credentials"] = []string{"true"}
+				h["Access-Control-Allow-Credentials"] = allowCredentialsSlice
 				varyByOrigin = true
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
@@ -84,20 +96,32 @@ func CORS(opts CORSOptions) Middleware {
 						break
 					}
 				}
-				h["Access-Control-Allow-Origin"] = []string{val}
+				if val == "*" {
+					h["Access-Control-Allow-Origin"] = allowOriginStarSlice
+				} else {
+					h["Access-Control-Allow-Origin"] = []string{val}
+				}
 				varyByOrigin = val != "*"
 			}
 
 			if varyByOrigin {
-				h["Vary"] = append(h["Vary"], "Origin")
+				if len(h["Vary"]) == 0 {
+					h["Vary"] = varyOriginSlice
+				} else {
+					h["Vary"] = append(h["Vary"], "Origin")
+				}
 			}
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h["Access-Control-Allow-Methods"] = []string{allowedMethods}
-				h["Access-Control-Allow-Headers"] = []string{allowedHeaders}
-				if exposedHeaders != "" {
-					h["Access-Control-Expose-Headers"] = []string{exposedHeaders}
+				if allowedMethodsSlice != nil {
+					h["Access-Control-Allow-Methods"] = allowedMethodsSlice
+				}
+				if allowedHeadersSlice != nil {
+					h["Access-Control-Allow-Headers"] = allowedHeadersSlice
+				}
+				if exposedHeadersSlice != nil {
+					h["Access-Control-Expose-Headers"] = exposedHeadersSlice
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
