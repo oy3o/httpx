@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-04-15 - [Pre-allocate Header Map Slices in Closures]
+**Learning:** `w.Header()["Key"] = []string{val}` allocates a slice per-request. To avoid this, pre-allocate the slice in the middleware closure: `valSlice := []string{val}` and use `w.Header()["Key"] = valSlice`. As long as `cap == len` (which is true for slice literals), downstream `w.Header().Add()` will allocate a new backing array rather than corrupting the shared slice.
+**Action:** When bypassing `w.Header().Set()` for static values via direct map assignment, use closure-captured pre-allocated slices instead of inline slice literals to completely eliminate per-request header allocations.

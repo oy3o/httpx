@@ -39,6 +39,16 @@ func CORS(opts CORSOptions) Middleware {
 		exposedHeaders = strings.Join(opts.ExposedHeaders, ", ")
 	}
 
+	allowedMethodsSlice := []string{allowedMethods}
+	allowedHeadersSlice := []string{allowedHeaders}
+	var exposedHeadersSlice []string
+	if exposedHeaders != "" {
+		exposedHeadersSlice = []string{exposedHeaders}
+	}
+	allowCredentialsSlice := []string{"true"}
+	varyOriginSlice := []string{"Origin"}
+	allowOriginStarSlice := []string{"*"}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
@@ -71,7 +81,7 @@ func CORS(opts CORSOptions) Middleware {
 			varyByOrigin := false
 			if opts.AllowCredentials {
 				h["Access-Control-Allow-Origin"] = []string{origin}
-				h["Access-Control-Allow-Credentials"] = []string{"true"}
+				h["Access-Control-Allow-Credentials"] = allowCredentialsSlice
 				varyByOrigin = true
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
@@ -84,20 +94,28 @@ func CORS(opts CORSOptions) Middleware {
 						break
 					}
 				}
-				h["Access-Control-Allow-Origin"] = []string{val}
+				if val == "*" {
+					h["Access-Control-Allow-Origin"] = allowOriginStarSlice
+				} else {
+					h["Access-Control-Allow-Origin"] = []string{val} // Since val can be origin or "*", we must create a new slice per request to prevent slice sharing.
+				}
 				varyByOrigin = val != "*"
 			}
 
 			if varyByOrigin {
-				h["Vary"] = append(h["Vary"], "Origin")
+				if len(h["Vary"]) == 0 {
+					h["Vary"] = varyOriginSlice
+				} else {
+					h["Vary"] = append(h["Vary"], "Origin")
+				}
 			}
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h["Access-Control-Allow-Methods"] = []string{allowedMethods}
-				h["Access-Control-Allow-Headers"] = []string{allowedHeaders}
+				h["Access-Control-Allow-Methods"] = allowedMethodsSlice
+				h["Access-Control-Allow-Headers"] = allowedHeadersSlice
 				if exposedHeaders != "" {
-					h["Access-Control-Expose-Headers"] = []string{exposedHeaders}
+					h["Access-Control-Expose-Headers"] = exposedHeadersSlice
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
