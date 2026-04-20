@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-04-20 - [Pre-allocate String Slices for Static CORS Headers]
+**Learning:** During CORS OPTIONS preflight request handling, passing values directly via `h["Access-Control-Allow-Methods"] = []string{allowedMethods}` inside the middleware closure causes a dynamic slice allocation on the heap for every preflight request. This is because `[]string{...}` forces a heap allocation for the slice header and underlying array even if `allowedMethods` itself was computed outside the closure.
+**Action:** Pre-allocate the `[]string` literal wrapper for static configuration values (like CORS allowed methods, headers, and exposed headers) outside of the middleware closure. Since slice literals initialize with `len == cap`, doing direct map assignments with them is completely safe against `.Add()` side-effects.
