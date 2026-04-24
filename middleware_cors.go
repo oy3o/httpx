@@ -39,6 +39,21 @@ func CORS(opts CORSOptions) Middleware {
 		exposedHeaders = strings.Join(opts.ExposedHeaders, ", ")
 	}
 
+	// ⚡ Bolt: Pre-allocate static slices outside the closure to eliminate per-request memory allocations.
+	// This is safe to reuse because the slices are created with cap == len (via slice literals),
+	// meaning any downstream append() calls will allocate a new array instead of mutating the shared one.
+	var (
+		trueSlice           = []string{"true"}
+		starSlice           = []string{"*"}
+		varyOriginSlice     = []string{"Origin"}
+		allowedMethodsSlice = []string{allowedMethods}
+		allowedHeadersSlice = []string{allowedHeaders}
+		exposedHeadersSlice []string
+	)
+	if exposedHeaders != "" {
+		exposedHeadersSlice = []string{exposedHeaders}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
@@ -63,15 +78,12 @@ func CORS(opts CORSOptions) Middleware {
 			}
 
 			h := w.Header()
-			// ⚡ Bolt: 使用直接 map 赋值代替 w.Header().Set()
-			// 分配新的 []string 以避免多个请求之间的数据竞争和共享状态污染，
-			// 但通过跳过 textproto.CanonicalMIMEHeaderKey 格式化调用，仍然能显著节省 CPU 和内存开销。
 
 			// 如果配置了 AllowCredentials，则必须回显具体的 Origin，不能是 "*"
 			varyByOrigin := false
 			if opts.AllowCredentials {
 				h["Access-Control-Allow-Origin"] = []string{origin}
-				h["Access-Control-Allow-Credentials"] = []string{"true"}
+				h["Access-Control-Allow-Credentials"] = trueSlice
 				varyByOrigin = true
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
@@ -84,20 +96,28 @@ func CORS(opts CORSOptions) Middleware {
 						break
 					}
 				}
-				h["Access-Control-Allow-Origin"] = []string{val}
+				if val == "*" {
+					h["Access-Control-Allow-Origin"] = starSlice
+				} else {
+					h["Access-Control-Allow-Origin"] = []string{val}
+				}
 				varyByOrigin = val != "*"
 			}
 
 			if varyByOrigin {
-				h["Vary"] = append(h["Vary"], "Origin")
+				if len(h["Vary"]) == 0 {
+					h["Vary"] = varyOriginSlice
+				} else {
+					h["Vary"] = append(h["Vary"], "Origin")
+				}
 			}
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h["Access-Control-Allow-Methods"] = []string{allowedMethods}
-				h["Access-Control-Allow-Headers"] = []string{allowedHeaders}
-				if exposedHeaders != "" {
-					h["Access-Control-Expose-Headers"] = []string{exposedHeaders}
+				h["Access-Control-Allow-Methods"] = allowedMethodsSlice
+				h["Access-Control-Allow-Headers"] = allowedHeadersSlice
+				if exposedHeadersSlice != nil {
+					h["Access-Control-Expose-Headers"] = exposedHeadersSlice
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
