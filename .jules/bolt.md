@@ -42,3 +42,6 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+## 2026-04-24 - Pre-allocate static slices for HTTP headers in middleware
+**Learning:** Dynamically allocating string slices like `[]string{"true"}`, `[]string{"*"}`, or `[]string{allowedMethods}` inside an `http.Handler` closure for the purpose of assigning directly to `w.Header()` (e.g. `w.Header()["Access-Control-Allow-Origin"] = []string{"*"}`) creates unnecessary heap allocations on every request.
+**Action:** Pre-allocate these string slices outside the handler closure. It is safe to reuse them because assigning a slice literal means `cap == len`. If the user mutates the header value using `w.Header().Add()`, the `append` operation will allocate a new backing array and avoid mutating the shared slice across requests. Ensure profiling artifacts like `mem.out` or `*.test` are never accidentally committed.
