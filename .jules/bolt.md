@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-04-26 - [Avoid append Allocation for Vary Origin Header]
+**Learning:** `h["Vary"] = append(h["Vary"], "Origin")` allocates a new `[]string{"Origin"}` on every request if `h["Vary"]` is initially empty (which it is most of the time). This per-request heap allocation can be completely avoided for simple headers.
+**Action:** Pre-allocate a static slice `var varyOriginSlice = []string{"Origin"}` outside the HTTP handler closure. Inside the handler, check if the header is empty (`len(h["Vary"]) == 0`) and directly assign the pre-allocated slice `h["Vary"] = varyOriginSlice`. Fallback to `append` only if the header is already populated.
