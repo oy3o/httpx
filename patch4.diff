@@ -1,0 +1,64 @@
+<<<<<<< SEARCH
+var varyOriginSlice = []string{"Origin"}
+var corsTrueSlice = []string{"true"}
+
+// CORS 跨域资源共享中间件。
+=======
+// ⚡ Bolt: 预分配切片以避免每次设置 header 时的内存分配。由于 slice 的 len == cap，
+// 当下游中间件调用 append 时会自动分配新数组，避免修改全局共享切片的问题。
+var varyOriginSlice = []string{"Origin"}
+var corsTrueSlice = []string{"true"}
+
+// CORS 跨域资源共享中间件。
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+	if err != nil {
+		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+			if pooledResp != nil {
+				pooledResp.Code = ""
+				pooledResp.Message = ""
+				pooledResp.TraceID = ""
+				errorRespPool.Put(pooledResp)
+			}
+			return
+		}
+		// 如果写入响应失败，且有 hook，再次记录这个“错误的错误”
+		if cfg.hook != nil {
+			cfg.hook(r.Context(), fmt.Errorf("httpx: failed to write error response: %w", err))
+		}
+	}
+
+	if pooledResp != nil {
+		pooledResp.Code = ""
+		pooledResp.Message = ""
+		pooledResp.TraceID = ""
+		errorRespPool.Put(pooledResp)
+	}
+}
+=======
+	if err != nil {
+		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+			if pooledResp != nil {
+				// ⚡ Bolt: 放回 pool 之前清空字符串字段，防止 sync.Pool 意外保留大量字符串内存导致泄漏
+				pooledResp.Code = ""
+				pooledResp.Message = ""
+				pooledResp.TraceID = ""
+				errorRespPool.Put(pooledResp)
+			}
+			return
+		}
+		// 如果写入响应失败，且有 hook，再次记录这个“错误的错误”
+		if cfg.hook != nil {
+			cfg.hook(r.Context(), fmt.Errorf("httpx: failed to write error response: %w", err))
+		}
+	}
+
+	if pooledResp != nil {
+		// ⚡ Bolt: 放回 pool 之前清空字符串字段，防止 sync.Pool 意外保留大量字符串内存导致泄漏
+		pooledResp.Code = ""
+		pooledResp.Message = ""
+		pooledResp.TraceID = ""
+		errorRespPool.Put(pooledResp)
+	}
+}
+>>>>>>> REPLACE
