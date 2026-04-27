@@ -179,6 +179,10 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
 			if pooledResp != nil {
+				// ⚡ Bolt: 放回 pool 之前清空字符串字段，防止 sync.Pool 意外保留大量字符串内存导致泄漏
+				pooledResp.Code = ""
+				pooledResp.Message = ""
+				pooledResp.TraceID = ""
 				errorRespPool.Put(pooledResp)
 			}
 			return
@@ -190,6 +194,10 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	}
 
 	if pooledResp != nil {
+		// ⚡ Bolt: 放回 pool 之前清空字符串字段，防止 sync.Pool 意外保留大量字符串内存导致泄漏
+		pooledResp.Code = ""
+		pooledResp.Message = ""
+		pooledResp.TraceID = ""
 		errorRespPool.Put(pooledResp)
 	}
 }

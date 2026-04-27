@@ -29,6 +29,11 @@ func DefaultCORS() Middleware {
 	})
 }
 
+// ⚡ Bolt: 预分配切片以避免每次设置 header 时的内存分配。由于 slice 的 len == cap，
+// 当下游中间件调用 append 时会自动分配新数组，避免修改全局共享切片的问题。
+var varyOriginSlice = []string{"Origin"}
+var corsTrueSlice = []string{"true"}
+
 // CORS 跨域资源共享中间件。
 func CORS(opts CORSOptions) Middleware {
 	// Pre-calculate allowed methods and headers to avoid allocation on every preflight request
@@ -71,7 +76,7 @@ func CORS(opts CORSOptions) Middleware {
 			varyByOrigin := false
 			if opts.AllowCredentials {
 				h["Access-Control-Allow-Origin"] = []string{origin}
-				h["Access-Control-Allow-Credentials"] = []string{"true"}
+				h["Access-Control-Allow-Credentials"] = corsTrueSlice
 				varyByOrigin = true
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
@@ -89,7 +94,11 @@ func CORS(opts CORSOptions) Middleware {
 			}
 
 			if varyByOrigin {
-				h["Vary"] = append(h["Vary"], "Origin")
+				if len(h["Vary"]) == 0 {
+					h["Vary"] = varyOriginSlice
+				} else {
+					h["Vary"] = append(h["Vary"], "Origin")
+				}
 			}
 
 			// 处理 Preflight OPTIONS 请求

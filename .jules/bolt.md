@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-04-27 - [Zero out string fields before sync.Pool Put]
+**Learning:** When using `sync.Pool` to recycle objects that contain `string` fields (like `Response[any]` in `error_func.go`), failing to zero out those strings (`Code`, `Message`, `TraceID`) before calling `Put` can lead to memory leaks. Strings in Go might be sub-slices of larger backing arrays. If the pool retains the object, it retains the string references, preventing the garbage collector from reclaiming the underlying memory.
+**Action:** Always explicitly zero out string and pointer fields (`pooledResp.Message = ""`) before returning objects to a `sync.Pool` to ensure safe garbage collection.
