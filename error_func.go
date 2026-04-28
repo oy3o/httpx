@@ -179,6 +179,10 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	if err != nil {
 		if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
 			if pooledResp != nil {
+				pooledResp.Code = ""
+				pooledResp.Message = ""
+				pooledResp.TraceID = ""
+				pooledResp.Data = nil
 				errorRespPool.Put(pooledResp)
 			}
 			return
@@ -190,6 +194,10 @@ func Error(w http.ResponseWriter, r *http.Request, err error, opts ...ErrorOptio
 	}
 
 	if pooledResp != nil {
+		pooledResp.Code = ""
+		pooledResp.Message = ""
+		pooledResp.TraceID = ""
+		pooledResp.Data = nil
 		errorRespPool.Put(pooledResp)
 	}
 }

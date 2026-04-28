@@ -42,3 +42,15 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-24 - [Avoid Retained Objects in error_func.go Response Envelope Pool]
+**Learning:** `sync.Pool` caching generic envelope responses inside the `Error` func was causing subtle memory leaks because retained pointers and large string slices inside `Response[any]` structures weren't cleared before being `Put` back into the pool. Any struct field containing slices, maps, or pointers returned to the pool retains the underlying memory indefinitely.
+**Action:** When returning objects like `Response[any]` envelopes to a `sync.Pool` inside `error_func.go` or `httpx.go`, make sure to explicitly zero out any string, struct, or pointer fields (e.g. `resp.Code = ""`, `resp.Message = ""`, `resp.TraceID = ""`, `resp.Data = nil`) before calling `errorRespPool.Put(resp)` to prevent memory leaks from retained requests.
+
+## 2026-03-24 - [Avoid Heap Allocation in middleware_cors.go via strings.Join inside handler]
+**Learning:** Calling `strings.Join(opts.AllowedMethods, ", ")` and `strings.Join(opts.AllowedHeaders, ", ")` inside the initialization phase of `CORS` in `middleware_cors.go` is good, but returning strings forces per-request heap allocation (`[]string{...}`) when passed into `h["Access-Control-Allow-Methods"] = []string{allowedMethods}`.
+**Action:** Pre-allocate static array slices instead of strings during the configuration phase of the CORS middleware. Assigning a pre-allocated slice of strings bypasses per-request allocation during the `OPTIONS` preflight handling.
+
+## 2026-03-24 - [Avoid Array Slice Allocations for Boolean and Static Responses in CORS headers]
+**Learning:** Returning `[]string{"true"}` inside the handler for `Access-Control-Allow-Credentials` inside the CORS preflight middleware causes an unnecessary per-request slice allocation. Additionally, `append(h["Vary"], "Origin")` causes a slice allocation.
+**Action:** Define static slice arrays `corsTrueSlice = []string{"true"}` and `varyOriginSlice = []string{"Origin"}` at the package level and assign them directly to the map instead of allocating new slice arrays on every CORS request. Only use `append` as a fallback if the header already contains existing entries.
