@@ -93,6 +93,9 @@ func NewHandler[Req any, Res any](fn HandlerFunc[Req, Res], opts ...Option) http
 			// 清理引用，避免内存泄漏
 			var zero Res
 			resp.Data = zero
+			resp.Code = ""
+			resp.Message = ""
+			resp.TraceID = ""
 			respPool.Put(resp)
 			return
 		}
