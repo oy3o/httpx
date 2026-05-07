@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-25 - [Prevent Memory Leaks in sync.Pool Envelopes]
+**Learning:** When using `sync.Pool` to reuse structs (like `Response[Res]` envelopes), merely clearing pointer fields or generic interface data fields is not enough to prevent memory leaks. String fields (`Code`, `Message`, `TraceID`) in Go are backed by pointer and length headers. If dynamically allocated strings (e.g., from `err.Error()`) are assigned to these struct fields, returning the struct to the pool retains the entire backing array in memory as long as the struct lives in the pool.
+**Action:** When returning structs to a `sync.Pool`, explicitly zero out all string fields (e.g., `resp.Message = ""`, `resp.Code = ""`) in addition to pointer/data fields before calling `pool.Put()`. This ensures the underlying string backing arrays can be immediately garbage collected.
