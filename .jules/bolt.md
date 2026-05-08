@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2023-10-25 - [Pre-canonicalize Dynamic Middleware Headers]
+**Learning:** When middleware accepts dynamic header keys (e.g., `WithAuthChallenge(..., headerKey)`), evaluating `headerKey == ""` and calling `w.Header().Set()` inside the handler closure introduces unnecessary per-request CPU overhead and memory allocations.
+**Action:** Move default evaluations (`if headerKey == ""`) and canonicalization (`http.CanonicalHeaderKey`) outside the closure. Inside the handler, use direct map assignment (`w.Header()[headerKey] = []string{headerVal}`) to completely eliminate per-request string formatting and slice allocations for the key. This also prevents potential data races from mutating closure-captured strings.
