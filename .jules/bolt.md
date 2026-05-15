@@ -42,3 +42,6 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+## 2026-05-15 - sync.Pool Memory Leaks
+**Learning:** Returning structs to a `sync.Pool` without explicitly zeroing out string and pointer fields (e.g., `Code`, `Message`, `TraceID`) can cause memory leaks. The pool holds retained references to dynamically allocated strings or sub-slices, preventing the garbage collector from reclaiming them.
+**Action:** Always explicitly zero out string, slice, and pointer fields before calling `pool.Put()`. Avoid relying solely on zeroing `interface{}` fields like `Data` if the struct has other allocated fields.
