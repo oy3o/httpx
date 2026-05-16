@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-24 - [Avoid Unnecessary IP Parsing in Middleware]
+**Learning:** `net.ParseIP` creates overhead on every request in `middleware_clientip.go`, even if `trustedProxies` is empty (the default and common case). Additionally, `strings.Index` on a single character `','` is slightly slower than `strings.IndexByte`. Finally, naive string slicing for `net.SplitHostPort` is dangerous and breaks IPv6 edge cases, showing standard library parsers should not be micro-optimized blindly.
+**Action:** In middleware that iterates over trusted lists (like `trustedProxies`), always wrap the extraction and parsing logic (like `net.ParseIP`) in an `if len(trustedProxies) > 0` block to avoid work entirely when not needed. Use `strings.IndexByte` for single-character searches.
