@@ -116,7 +116,7 @@ func getStructMeta(t reflect.Type) *structMeta {
 
 				// 获取通用的映射 Key (form > json > name)
 				mapKey := field.Tag.Get("form")
-				if idx := strings.Index(mapKey, ","); idx != -1 {
+				if idx := strings.IndexByte(mapKey, ','); idx != -1 {
 					mapKey = mapKey[:idx]
 				}
 				if mapKey == "-" {
@@ -124,7 +124,7 @@ func getStructMeta(t reflect.Type) *structMeta {
 				}
 				if mapKey == "" {
 					mapKey = field.Tag.Get("json")
-					if idx := strings.Index(mapKey, ","); idx != -1 {
+					if idx := strings.IndexByte(mapKey, ','); idx != -1 {
 						mapKey = mapKey[:idx]
 					}
 				}
