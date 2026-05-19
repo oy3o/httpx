@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-05-19 - [Avoid net.ParseIP Allocation when No Trusted Proxies Exist]
+**Learning:** `net.ParseIP` has a high CPU cost due to complex IPv4/IPv6 parsing logic, and `middleware_clientip.go` was parsing `r.RemoteAddr` into a `net.IP` on every request just to check if it matched trusted proxy networks. However, if `trustedProxies` is empty, there are no proxies to check against, making the parsing useless overhead.
+**Action:** In `middleware_clientip.go` or similar hot paths, wrap expensive IP parsing in a precondition check (e.g. `if len(trustedProxies) > 0 { remoteIP := net.ParseIP(remoteIPStr) ... }`).
