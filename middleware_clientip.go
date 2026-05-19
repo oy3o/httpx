@@ -33,15 +33,18 @@ func NewClientIPMiddleware(trustedProxiesCIDR []string) func(http.Handler) http.
 			if err != nil {
 				remoteIPStr = r.RemoteAddr
 			}
-			remoteIP := net.ParseIP(remoteIPStr)
-
 			// Check if the immediate peer is a trusted proxy
 			isTrusted := false
-			if remoteIP != nil {
-				for _, proxyNet := range trustedProxies {
-					if proxyNet.Contains(remoteIP) {
-						isTrusted = true
-						break
+			// ⚡ Bolt: 避免不必要的 net.ParseIP 开销
+			// net.ParseIP 包含复杂的 IPv4/IPv6 解析逻辑并会分配内存。
+			// 如果没有配置 trustedProxies，我们就不要白白执行这个昂贵的解析。
+			if len(trustedProxies) > 0 {
+				if remoteIP := net.ParseIP(remoteIPStr); remoteIP != nil {
+					for _, proxyNet := range trustedProxies {
+						if proxyNet.Contains(remoteIP) {
+							isTrusted = true
+							break
+						}
 					}
 				}
 			}
