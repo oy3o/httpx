@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2023-10-24 - [Zero-Allocation Dummy ResponseWriter for Benchmarks]
+**Learning:** When benchmarking Go HTTP middleware, `httptest.NewRecorder()` introduces unavoidable memory allocations and overhead (especially when `WriteHeader` is called) that can obscure the actual performance metrics of the middleware itself.
+**Action:** When benchmarking middleware where the actual response body and headers aren't strictly needed for verification, implement and use a minimal, zero-allocation dummy `http.ResponseWriter` instead of `httptest.NewRecorder()`.
