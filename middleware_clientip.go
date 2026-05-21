@@ -28,20 +28,28 @@ func NewClientIPMiddleware(trustedProxiesCIDR []string) func(http.Handler) http.
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var ip string
 
-			// Get immediate peer IP (RemoteAddr)
-			remoteIPStr, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				remoteIPStr = r.RemoteAddr
-			}
-			remoteIP := net.ParseIP(remoteIPStr)
-
-			// Check if the immediate peer is a trusted proxy
+			// ⚡ Bolt: Fast path - skip expensive IP parsing if no proxies are trusted
 			isTrusted := false
-			if remoteIP != nil {
-				for _, proxyNet := range trustedProxies {
-					if proxyNet.Contains(remoteIP) {
-						isTrusted = true
-						break
+			var remoteIPStr string
+
+			if len(trustedProxies) > 0 {
+				// Get immediate peer IP (RemoteAddr)
+				var err error
+				remoteIPStr, _, err = net.SplitHostPort(r.RemoteAddr)
+				if err != nil {
+					remoteIPStr = r.RemoteAddr
+				}
+
+				// ⚡ Bolt: Defer expensive net.ParseIP until functionally required
+				remoteIP := net.ParseIP(remoteIPStr)
+
+				// Check if the immediate peer is a trusted proxy
+				if remoteIP != nil {
+					for _, proxyNet := range trustedProxies {
+						if proxyNet.Contains(remoteIP) {
+							isTrusted = true
+							break
+						}
 					}
 				}
 			}
@@ -52,7 +60,8 @@ func NewClientIPMiddleware(trustedProxiesCIDR []string) func(http.Handler) http.
 					// XFF: client, proxy1, proxy2
 					// We trust the chain provided by our trusted proxy.
 					// Real client is usually the first one.
-					if idx := strings.Index(xff, ","); idx != -1 {
+					// ⚡ Bolt: strings.IndexByte is faster than strings.Index for single byte
+					if idx := strings.IndexByte(xff, ','); idx != -1 {
 						ip = strings.TrimSpace(xff[:idx])
 					} else {
 						ip = strings.TrimSpace(xff)
@@ -69,7 +78,17 @@ func NewClientIPMiddleware(trustedProxiesCIDR []string) func(http.Handler) http.
 
 			// 3. Fallback to RemoteAddr (Untrusted peer, or headers empty)
 			if ip == "" {
-				ip = remoteIPStr
+				if remoteIPStr != "" {
+					ip = remoteIPStr
+				} else {
+					// Need to extract the IP from RemoteAddr since we didn't do it in the fast path
+					ipStr, _, err := net.SplitHostPort(r.RemoteAddr)
+					if err != nil {
+						ip = r.RemoteAddr
+					} else {
+						ip = ipStr
+					}
+				}
 			}
 
 			// Clean up
