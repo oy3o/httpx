@@ -42,3 +42,11 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-24 - [Defer IP Parsing in Fast Path]
+**Learning:** `net.ParseIP` and `net.SplitHostPort` are expensive operations (involving heap allocations and complex string parsing). In middleware like `ClientIP`, executing these unconditionally on every request is a severe performance penalty if the application is not configured to trust any proxies (which is a common default or early-path scenario).
+**Action:** Always wrap expensive standard library IP/network parsing operations in pre-condition checks (e.g., `if len(trustedProxies) > 0`) to defer them until functionally required.
+
+## 2026-03-24 - [Use IndexByte for Single Character Lookups]
+**Learning:** When searching for a single character in a string (like finding the first comma in an `X-Forwarded-For` header), `strings.IndexByte(s, ',')` is significantly faster and uses less CPU than `strings.Index(s, ",")` because it avoids string-to-byte conversions and uses optimized assembly under the hood.
+**Action:** Replace `strings.Index(s, "c")` with `strings.IndexByte(s, 'c')` for single-character searches in hot paths.
