@@ -31,13 +31,29 @@ func DefaultCORS() Middleware {
 
 // CORS 跨域资源共享中间件。
 func CORS(opts CORSOptions) Middleware {
-	// Pre-calculate allowed methods and headers to avoid allocation on every preflight request
-	allowedMethods := strings.Join(opts.AllowedMethods, ", ")
-	allowedHeaders := strings.Join(opts.AllowedHeaders, ", ")
-	var exposedHeaders string
+	// Pre-calculate allowed methods and headers slices to avoid allocation on every preflight request
+	allowedMethodsSlice := []string{strings.Join(opts.AllowedMethods, ", ")}
+	allowedHeadersSlice := []string{strings.Join(opts.AllowedHeaders, ", ")}
+	var exposedHeadersSlice []string
 	if len(opts.ExposedHeaders) > 0 {
-		exposedHeaders = strings.Join(opts.ExposedHeaders, ", ")
+		exposedHeadersSlice = []string{strings.Join(opts.ExposedHeaders, ", ")}
 	}
+
+	hasWildcard := false
+	for _, o := range opts.AllowedOrigins {
+		if o == "*" {
+			hasWildcard = true
+			break
+		}
+	}
+
+	var allowCredentialsSlice []string
+	if opts.AllowCredentials {
+		allowCredentialsSlice = []string{"true"}
+	}
+
+	wildcardOriginSlice := []string{"*"}
+	varyOriginSlice := []string{"Origin"}
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -50,10 +66,14 @@ func CORS(opts CORSOptions) Middleware {
 
 			// Origin 匹配逻辑
 			allowed := false
-			for _, o := range opts.AllowedOrigins {
-				if o == "*" || o == origin {
-					allowed = true
-					break
+			if hasWildcard {
+				allowed = true
+			} else {
+				for _, o := range opts.AllowedOrigins {
+					if o == origin {
+						allowed = true
+						break
+					}
 				}
 			}
 
@@ -71,33 +91,44 @@ func CORS(opts CORSOptions) Middleware {
 			varyByOrigin := false
 			if opts.AllowCredentials {
 				h["Access-Control-Allow-Origin"] = []string{origin}
-				h["Access-Control-Allow-Credentials"] = []string{"true"}
+				h["Access-Control-Allow-Credentials"] = allowCredentialsSlice
 				varyByOrigin = true
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
 				// 为了简化，如果有 "*" 匹配，直接返回 "*"
 				// 否则返回具体的 origin
-				val := origin
-				for _, o := range opts.AllowedOrigins {
-					if o == "*" {
-						val = "*"
-						break
-					}
+				if hasWildcard {
+					h["Access-Control-Allow-Origin"] = wildcardOriginSlice
+				} else {
+					h["Access-Control-Allow-Origin"] = []string{origin}
+					varyByOrigin = true
 				}
-				h["Access-Control-Allow-Origin"] = []string{val}
-				varyByOrigin = val != "*"
 			}
 
 			if varyByOrigin {
-				h["Vary"] = append(h["Vary"], "Origin")
+				if len(h["Vary"]) == 0 {
+					h["Vary"] = varyOriginSlice
+				} else {
+					vary := h["Vary"]
+					hasOrigin := false
+					for _, v := range vary {
+						if v == "Origin" {
+							hasOrigin = true
+							break
+						}
+					}
+					if !hasOrigin {
+						h["Vary"] = append(vary, "Origin")
+					}
+				}
 			}
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h["Access-Control-Allow-Methods"] = []string{allowedMethods}
-				h["Access-Control-Allow-Headers"] = []string{allowedHeaders}
-				if exposedHeaders != "" {
-					h["Access-Control-Expose-Headers"] = []string{exposedHeaders}
+				h["Access-Control-Allow-Methods"] = allowedMethodsSlice
+				h["Access-Control-Allow-Headers"] = allowedHeadersSlice
+				if exposedHeadersSlice != nil {
+					h["Access-Control-Expose-Headers"] = exposedHeadersSlice
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
