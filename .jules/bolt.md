@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-24 - [Replace strings.Index with strings.IndexByte]
+**Learning:** `strings.Index(s, "c")` has unnecessary overhead for single-character searches because it handles multi-byte string matching. `strings.IndexByte(s, 'c')` is heavily optimized in Go (often using architecture-specific assembly) and avoids string conversions.
+**Action:** Always prefer `strings.IndexByte(s, 'c')` over `strings.Index(s, "c")` when searching for a single ASCII character, especially in hot paths like request parsing and middleware execution.
