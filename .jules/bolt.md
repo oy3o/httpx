@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-05-27 - [Shared Slice Mutation Data Race Mitigation]
+**Learning:** In HTTP middleware, directly sharing pre-allocated string slices via map assignments (`w.Header()["Key"] = sharedSlice`) can be dangerous if a downstream handler uses `Header.Add()` or `.Set()`. However, if the shared slice has `len == cap`, `Add()` will safely allocate a new backing array, avoiding mutation of the shared state. The previous CORS optimization correctly relied on this implicit safety mechanism (as literal slices `[]string{"*"}` have `len == cap`), making the optimization safe but with a hidden, critical nuance.
+**Action:** When bypassing `w.Header().Set()` using shared, pre-allocated static slices (e.g., `var val = []string{"1"}`), always verify that `len == cap` to ensure immunity from downstream `Add()` data races, or document this requirement clearly in the code to prevent future regressions.

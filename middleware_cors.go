@@ -29,14 +29,20 @@ func DefaultCORS() Middleware {
 	})
 }
 
+var (
+	corsValTrue       = []string{"true"}
+	corsValStar       = []string{"*"}
+	corsValVaryOrigin = []string{"Origin"}
+)
+
 // CORS 跨域资源共享中间件。
 func CORS(opts CORSOptions) Middleware {
 	// Pre-calculate allowed methods and headers to avoid allocation on every preflight request
-	allowedMethods := strings.Join(opts.AllowedMethods, ", ")
-	allowedHeaders := strings.Join(opts.AllowedHeaders, ", ")
-	var exposedHeaders string
+	allowedMethodsSlice := []string{strings.Join(opts.AllowedMethods, ", ")}
+	allowedHeadersSlice := []string{strings.Join(opts.AllowedHeaders, ", ")}
+	var exposedHeadersSlice []string
 	if len(opts.ExposedHeaders) > 0 {
-		exposedHeaders = strings.Join(opts.ExposedHeaders, ", ")
+		exposedHeadersSlice = []string{strings.Join(opts.ExposedHeaders, ", ")}
 	}
 
 	return func(next http.Handler) http.Handler {
@@ -71,7 +77,7 @@ func CORS(opts CORSOptions) Middleware {
 			varyByOrigin := false
 			if opts.AllowCredentials {
 				h["Access-Control-Allow-Origin"] = []string{origin}
-				h["Access-Control-Allow-Credentials"] = []string{"true"}
+				h["Access-Control-Allow-Credentials"] = corsValTrue
 				varyByOrigin = true
 			} else {
 				// 如果没有 Credentials，可以使用配置的值（可能是 "*"）
@@ -84,20 +90,28 @@ func CORS(opts CORSOptions) Middleware {
 						break
 					}
 				}
-				h["Access-Control-Allow-Origin"] = []string{val}
+				if val == "*" {
+					h["Access-Control-Allow-Origin"] = corsValStar
+				} else {
+					h["Access-Control-Allow-Origin"] = []string{val}
+				}
 				varyByOrigin = val != "*"
 			}
 
 			if varyByOrigin {
-				h["Vary"] = append(h["Vary"], "Origin")
+				if len(h["Vary"]) == 0 {
+					h["Vary"] = corsValVaryOrigin
+				} else {
+					h["Vary"] = append(h["Vary"], "Origin")
+				}
 			}
 
 			// 处理 Preflight OPTIONS 请求
 			if r.Method == http.MethodOptions {
-				h["Access-Control-Allow-Methods"] = []string{allowedMethods}
-				h["Access-Control-Allow-Headers"] = []string{allowedHeaders}
-				if exposedHeaders != "" {
-					h["Access-Control-Expose-Headers"] = []string{exposedHeaders}
+				h["Access-Control-Allow-Methods"] = allowedMethodsSlice
+				h["Access-Control-Allow-Headers"] = allowedHeadersSlice
+				if exposedHeadersSlice != nil {
+					h["Access-Control-Expose-Headers"] = exposedHeadersSlice
 				}
 				w.WriteHeader(http.StatusNoContent)
 				return
