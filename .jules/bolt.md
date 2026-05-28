@@ -42,3 +42,7 @@
 **Learning:** `sonic.Marshal` returns a byte slice precisely sized to its contents (`cap == len`). Consequently, `append(data, '
 ')` will allocate a completely new backing array and copy the entire JSON payload into memory just to add a single newline character. This is a severe O(N) memory regression.
 **Action:** Use consecutive `w.Write` calls instead of `append`, as `http.ResponseWriter` inherently buffers writes via `bufio.Writer`, making the consecutive writes highly efficient.
+
+## 2026-03-24 - [Defer net.ParseIP in ClientIP Middleware]
+**Learning:** `net.ParseIP` creates heap allocations because it allocates a new `net.IP` byte slice. In `NewClientIPMiddleware`, `net.ParseIP` was being called unconditionally for every request to match against trusted proxies, even when `len(trustedProxies) == 0`.
+**Action:** Defer expensive parsing or allocating operations (like `net.ParseIP`) in hot paths by wrapping them in pre-condition checks, ensuring they only run if functionally required. Additionally, prefer `strings.IndexByte(s, ',')` over `strings.Index(s, ",")` for single-character searches to avoid string conversions.
