@@ -52,7 +52,7 @@ func NewClientIPMiddleware(trustedProxiesCIDR []string) func(http.Handler) http.
 					// XFF: client, proxy1, proxy2
 					// We trust the chain provided by our trusted proxy.
 					// Real client is usually the first one.
-					if idx := strings.Index(xff, ","); idx != -1 {
+					if idx := strings.IndexByte(xff, ','); idx != -1 {
 						ip = strings.TrimSpace(xff[:idx])
 					} else {
 						ip = strings.TrimSpace(xff)
